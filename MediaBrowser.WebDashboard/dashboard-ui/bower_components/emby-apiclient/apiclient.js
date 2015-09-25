@@ -1125,6 +1125,16 @@
             });
         };
 
+        self.performMovieOrganization = function (id, options) {
+
+            var url = self.getUrl("Library/FileOrganizations/" + id + "/Movie/Organize", options || {});
+
+            return self.ajax({
+                type: "POST",
+                url: url
+            });
+        };
+
         self.getSmartMatchInfos = function (options) {
 
             options = options || {};
