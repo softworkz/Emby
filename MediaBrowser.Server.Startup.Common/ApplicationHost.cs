@@ -103,6 +103,8 @@ using System.Threading.Tasks;
 using CommonIO;
 using MediaBrowser.Api.Playback;
 using MediaBrowser.Common.Implementations.Updates;
+using MediaBrowser.Controller.Health;
+using MediaBrowser.Server.Implementations.Health;
 
 namespace MediaBrowser.Server.Startup.Common
 {
@@ -126,7 +128,18 @@ namespace MediaBrowser.Server.Startup.Common
         /// <returns>IConfigurationManager.</returns>
         protected override IConfigurationManager GetConfigurationManager()
         {
-            return new ServerConfigurationManager(ApplicationPaths, LogManager, XmlSerializer, FileSystemManager);
+            return new ServerConfigurationManager(ApplicationPaths, LogManager, XmlSerializer, FileSystemManager, GetHealthReporter());
+        }
+
+        private IHealthReporter GetHealthReporter()
+        {
+            if (HealthReporter == null)
+            {
+                HealthReporter = new HealthReporter(LogManager.GetLogger("HealthReporter"), LocalizationManager);
+                RegisterSingleInstance<IHealthReporter>(HealthReporter);
+            }
+
+            return HealthReporter;
         }
 
         /// <summary>
@@ -204,6 +217,7 @@ namespace MediaBrowser.Server.Startup.Common
         private ICollectionManager CollectionManager { get; set; }
         private IMediaSourceManager MediaSourceManager { get; set; }
         private IPlaylistManager PlaylistManager { get; set; }
+        private IHealthReporter HealthReporter { get; set; }
 
         private readonly StartupOptions _startupOptions;
         private readonly string _releaseAssetFilename;
@@ -495,6 +509,11 @@ namespace MediaBrowser.Server.Startup.Common
 
             var newsService = new Implementations.News.NewsService(ApplicationPaths, JsonSerializer);
             RegisterSingleInstance<INewsService>(newsService);
+
+            var healthReporter = GetHealthReporter();
+
+            var healthService = new Implementations.Health.HealthService(ApplicationPaths, JsonSerializer, healthReporter, LocalizationManager);
+            RegisterSingleInstance<IHealthService>(healthService);
 
             var fileOrganizationService = new FileOrganizationService(TaskManager, FileOrganizationRepository, LogManager.GetLogger("FileOrganizationService"), LibraryMonitor, LibraryManager, ServerConfigurationManager, FileSystemManager, ProviderManager);
             RegisterSingleInstance<IFileOrganizationService>(fileOrganizationService);
