@@ -157,6 +157,7 @@
     <Compile Include="EntryPoints\ServerEventNotifier.cs" />
     <Compile Include="EntryPoints\UserDataChangeNotifier.cs" />
     <Compile Include="FileOrganization\OrganizerScheduledTask.cs" />
+    <Compile Include="Health\CheckDiskspaceTask.cs" />
     <Compile Include="Health\HealthReporter.cs" />
     <Compile Include="Health\HealthService.cs" />
     <Compile Include="HttpServer\AsyncStreamWriter.cs" />

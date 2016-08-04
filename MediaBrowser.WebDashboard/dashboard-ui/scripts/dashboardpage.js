@@ -217,6 +217,7 @@
                     var itemHtml = '';
 
                     //itemHtml += '<a class="clearLink" href="' + item.Link + '" target="_blank">';
+
                     itemHtml += '<div class="listItem">';
 
                     itemHtml += '<i class="listItemIcon md-icon" style="background-color:' + color + '">' + icon + '</i>';

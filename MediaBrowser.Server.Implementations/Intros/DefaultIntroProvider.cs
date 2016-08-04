@@ -38,7 +38,7 @@ namespace MediaBrowser.Server.Implementations.Intros
 
         public async Task<IEnumerable<IntroInfo>> GetIntros(BaseItem item, User user)
         {
-            var config = GetOptions();
+            var config = _serverConfig.GetCinemaModeConfiguration();
 
             if (item is Movie)
             {
@@ -129,11 +129,6 @@ namespace MediaBrowser.Server.Implementations.Intros
             return candidates.Select(i => i.IntroInfo)
                 .Concat(customIntros.Take(1))
                 .Concat(mediaInfoIntros);
-        }
-
-        private CinemaModeConfiguration GetOptions()
-        {
-            return _serverConfig.GetConfiguration<CinemaModeConfiguration>("cinemamode");
         }
 
         private List<IntroInfo> GetCustomIntros(CinemaModeConfiguration options)
@@ -303,7 +298,7 @@ namespace MediaBrowser.Server.Implementations.Intros
 
         public IEnumerable<string> GetAllIntroFiles()
         {
-            return GetCustomIntroFiles(GetOptions(), true, true);
+            return GetCustomIntroFiles(_serverConfig.GetCinemaModeConfiguration(), true, true);
         }
 
         private bool IsSupporter
@@ -364,6 +359,14 @@ namespace MediaBrowser.Server.Implementations.Intros
                      Key = "cinemamode"
                 }
             };
+        }
+    }
+
+    public static class CinemaModeConfigExtension
+    {
+        public static CinemaModeConfiguration GetCinemaModeConfiguration(this IConfigurationManager config)
+        {
+            return config.GetConfiguration<CinemaModeConfiguration>("cinemamode");
         }
     }
 

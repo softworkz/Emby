@@ -76,7 +76,7 @@ namespace MediaBrowser.Server.Implementations.Health
         {
             lock (_messages)
             {
-                var deleteMessages = _messages.Where(e => e.ReportingType.Equals(reportingType) && e.MessageId.Equals(messageId)).ToList();
+                var deleteMessages = _messages.Where(e => e.ReportingType.Equals(reportingType) && (e.MessageId.Equals(messageId) || string.IsNullOrEmpty(messageId))).ToList();
 
                 foreach (var message in deleteMessages)
                 {

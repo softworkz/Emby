@@ -18,4 +18,13 @@ namespace MediaBrowser.Server.Implementations.LiveTv
             };
         }
     }
+
+    public static class LiveTvConfigExtension
+    {
+        public static LiveTvOptions GetLiveTvOptions(this IConfigurationManager config)
+        {
+            return config.GetConfiguration<LiveTvOptions>("livetv");
+        }
+    }
+
 }

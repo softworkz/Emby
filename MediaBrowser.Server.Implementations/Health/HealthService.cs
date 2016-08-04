@@ -31,10 +31,10 @@ namespace MediaBrowser.Server.Implementations.Health
             var messages = _healthReporter.GetAllHealthMessages().Result;
 
 
-            if (query.WarningsOnly.HasValue && query.WarningsOnly.Value)
-            {
-                messages = messages.Where(e => e.Severity == HealthMessageSeverity.Warning || e.Severity == HealthMessageSeverity.Problem).ToList();
-            }
+            ////if (query.WarningsOnly.HasValue && query.WarningsOnly.Value)
+            ////{
+            ////    messages = messages.Where(e => e.Severity == HealthMessageSeverity.Warning || e.Severity == HealthMessageSeverity.Problem).ToList();
+            ////}
 
             var localizedMessages = messages.OrderByDescending(o => (int)o.Severity).Select(e => e.ToLocalized(_localizationManager));
 
