@@ -95,6 +95,7 @@
     <Compile Include="Configuration\CinemaModeConfiguration.cs" />
     <Compile Include="Configuration\EncodingOptions.cs" />
     <Compile Include="Configuration\FanartOptions.cs" />
+    <Compile Include="Configuration\LibraryOptions.cs" />
     <Compile Include="Configuration\MetadataConfiguration.cs" />
     <Compile Include="Configuration\PeopleMetadataOptions.cs" />
     <Compile Include="Configuration\XbmcMetadataOptions.cs" />
@@ -134,6 +135,7 @@
     <Compile Include="Dto\MetadataEditorInfo.cs" />
     <Compile Include="Dto\NameIdPair.cs" />
     <Compile Include="Dto\NameValuePair.cs" />
+    <Compile Include="FileOrganization\MovieFileOrganizationRequest.cs" />
     <Compile Include="FileOrganization\SmartMatchInfo.cs" />
     <Compile Include="MediaInfo\LiveStreamRequest.cs" />
     <Compile Include="MediaInfo\LiveStreamResponse.cs" />

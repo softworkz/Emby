@@ -1,10 +1,11 @@
 ﻿using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Persistence;
 
 namespace MediaBrowser.Server.Implementations.Library.Validators
 {
@@ -15,15 +16,17 @@ namespace MediaBrowser.Server.Implementations.Library.Validators
         /// </summary>
         private readonly ILibraryManager _libraryManager;
 
+        private readonly IItemRepository _itemRepo;
         /// <summary>
         /// The _logger
         /// </summary>
         private readonly ILogger _logger;
 
-        public StudiosValidator(ILibraryManager libraryManager, ILogger logger)
+        public StudiosValidator(ILibraryManager libraryManager, ILogger logger, IItemRepository itemRepo)
         {
             _libraryManager = libraryManager;
             _logger = logger;
+            _itemRepo = itemRepo;
         }
 
         /// <summary>
@@ -34,21 +37,18 @@ namespace MediaBrowser.Server.Implementations.Library.Validators
         /// <returns>Task.</returns>
         public async Task Run(IProgress<double> progress, CancellationToken cancellationToken)
         {
-            var items = _libraryManager.RootFolder.GetRecursiveChildren(i => true)
-                .SelectMany(i => i.Studios)
-                .DistinctNames()
-                .ToList();
+            var names = _itemRepo.GetStudioNames();
 
             var numComplete = 0;
-            var count = items.Count;
+            var count = names.Count;
 
-            foreach (var name in items)
+            foreach (var name in names)
             {
                 try
                 {
-                    var itemByName = _libraryManager.GetStudio(name);
+                    var item = _libraryManager.GetStudio(name);
 
-                    await itemByName.RefreshMetadata(cancellationToken).ConfigureAwait(false);
+                    await item.RefreshMetadata(cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

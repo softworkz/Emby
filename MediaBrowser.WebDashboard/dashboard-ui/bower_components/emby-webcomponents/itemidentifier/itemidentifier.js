@@ -88,7 +88,7 @@
         page.querySelector('.popupIdentifyForm').classList.add('hide');
         identificationSearchResults.classList.remove('hide');
         page.querySelector('.identifyOptionsForm').classList.add('hide');
-        page.querySelector('.dialogContentInner').classList.remove('centeredContent');
+        page.querySelector('.dialogContentInner').classList.remove('dialog-content-centered');
 
         var html = '';
         var i, length;
@@ -142,7 +142,7 @@
         page.querySelector('.identificationSearchResults').classList.add('hide');
         identifyOptionsForm.classList.remove('hide');
         page.querySelector('#chkIdentifyReplaceImages').checked = true;
-        page.querySelector('.dialogContentInner').classList.add('centeredContent');
+        page.querySelector('.dialogContentInner').classList.add('dialog-content-centered');
 
         currentSearchResult = identifyResult;
 
@@ -188,7 +188,7 @@
         html += '<button type="button" class="' + cssClass + '" data-index="' + index + '">';
         html += '<div class="cardBox visualCardBox">';
         html += '<div class="cardScalable">';
-        html += '<div class="cardPadder"></div>';
+        html += '<div class="cardPadder-portrait"></div>';
 
         html += '<div class="cardContent searchImage">';
 
@@ -203,15 +203,15 @@
         html += '</div>';
         html += '</div>';
 
-        html += '<div class="cardFooter">';
+        html += '<div class="cardFooter cardFooter-visual">';
         html += '<div class="cardText cardTextCentered">' + result.Name + '</div>';
 
-        html += '<div class="cardText cardTextCentered">';
+        html += '<div class="cardText cardText-secondary cardTextCentered">';
         html += result.ProductionYear || '&nbsp;';
         html += '</div>';
 
         if (result.GameSystem) {
-            html += '<div class="cardText cardTextCentered">';
+            html += '<div class="cardText cardText-secondary cardTextCentered">';
             html += result.GameSystem;
             html += '</div>';
         }
@@ -299,7 +299,7 @@
 
             page.querySelector('.identifyProviderIds').innerHTML = html;
 
-            page.querySelector('.dialogHeaderTitle').innerHTML = globalize.translate('sharedcomponents#Identify');
+            page.querySelector('.formDialogHeaderTitle').innerHTML = globalize.translate('sharedcomponents#Identify');
         });
     }
 
@@ -341,7 +341,7 @@
                 dlg.addEventListener('close', onDialogClosed);
 
                 if (layoutManager.tv) {
-                    scrollHelper.centerFocus.on(dlg.querySelector('.dialogContent'), false);
+                    scrollHelper.centerFocus.on(dlg.querySelector('.formDialogContent'), false);
                 }
 
                 dialogHelper.open(dlg);
@@ -412,7 +412,7 @@
             document.body.appendChild(dlg);
 
             if (layoutManager.tv) {
-                scrollHelper.centerFocus.on(dlg.querySelector('.dialogContent'), false);
+                scrollHelper.centerFocus.on(dlg.querySelector('.formDialogContent'), false);
             }
 
             dialogHelper.open(dlg);
@@ -458,7 +458,7 @@
             dlg.querySelector('#txtLookupYear').value = itemYear;
         }
 
-        dlg.querySelector('.dialogHeaderTitle').innerHTML = globalize.translate('sharedcomponents#Search');
+        dlg.querySelector('.formDialogHeaderTitle').innerHTML = globalize.translate('sharedcomponents#Search');
     }
 
     return {

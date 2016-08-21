@@ -1,4 +1,4 @@
-﻿define(['require', 'browser', 'globalize', 'connectionManager', 'serverNotifications', 'loading', 'datetime', 'focusManager', 'imageLoader', 'events', 'layoutManager', 'itemShortcuts', 'registrationservices', 'clearButtonStyle', 'css!./guide.css', 'material-icons', 'scrollStyles', 'emby-button'], function (require, browser, globalize, connectionManager, serverNotifications, loading, datetime, focusManager, imageLoader, events, layoutManager, itemShortcuts, registrationServices) {
+﻿define(['require', 'browser', 'globalize', 'connectionManager', 'serverNotifications', 'loading', 'datetime', 'focusManager', 'imageLoader', 'events', 'layoutManager', 'itemShortcuts', 'registrationservices', 'dom', 'clearButtonStyle', 'css!./guide.css', 'material-icons', 'scrollStyles', 'emby-button', 'paper-icon-button-light'], function (require, browser, globalize, connectionManager, serverNotifications, loading, datetime, focusManager, imageLoader, events, layoutManager, itemShortcuts, registrationServices, dom) {
 
     function Guide(options) {
 
@@ -14,6 +14,8 @@
         var totalRendererdMs = msPerDay;
 
         var currentDate;
+        var currentStartIndex = 0;
+        var currentChannelLimit = 0;
 
         var channelQuery = {
 
@@ -119,7 +121,7 @@
 
             return registrationServices.validateFeature('livetv').then(function () {
 
-                var limit = browser.mobile ? 100 : 400;
+                var limit = browser.slow ? 100 : 500;
 
                 context.querySelector('.guideRequiresUnlock').classList.add('hide');
 
@@ -144,10 +146,15 @@
 
             getChannelLimit(context).then(function (channelLimit) {
 
+                currentChannelLimit = channelLimit;
+
                 showLoading();
 
+                channelQuery.StartIndex = currentStartIndex;
                 channelQuery.Limit = channelLimit;
                 channelQuery.AddCurrentProgram = false;
+                channelQuery.EnableUserData = false;
+                channelQuery.EnableImageTypes = "Primary";
 
                 channelsPromise = channelsPromise || apiClient.getLiveTvChannels(channelQuery);
 
@@ -161,6 +168,25 @@
                 console.log(nextDay);
                 channelsPromise.then(function (channelsResult) {
 
+                    if (channelsResult.TotalRecordCount > channelLimit) {
+                        context.querySelector('.guidePaging').classList.remove('hide');
+
+                        if (channelQuery.StartIndex) {
+                            context.querySelector('.btnPreviousPage').disabled = false;
+                        } else {
+                            context.querySelector('.btnPreviousPage').disabled = true;
+                        }
+
+                        if ((channelQuery.StartIndex + channelLimit) < channelsResult.TotalRecordCount) {
+                            context.querySelector('.btnNextPage').disabled = false;
+                        } else {
+                            context.querySelector('.btnNextPage').disabled = true;
+                        }
+
+                    } else {
+                        context.querySelector('.guidePaging').classList.add('hide');
+                    }
+
                     apiClient.getLiveTvPrograms({
                         UserId: apiClient.getCurrentUserId(),
                         MaxStartDate: nextDay.toISOString(),
@@ -169,9 +195,11 @@
                             return c.Id;
                         }).join(','),
                         ImageTypeLimit: 1,
-                        EnableImageTypes: "Primary,Backdrop",
+                        EnableImages: false,
+                        //EnableImageTypes: layoutManager.tv ? "Primary,Backdrop" : "Primary",
                         SortBy: "StartDate",
-                        EnableTotalRecordCount: false
+                        EnableTotalRecordCount: false,
+                        EnableUserData: false
 
                     }).then(function (programsResult) {
 
@@ -379,8 +407,7 @@
             // Normally we'd want to just let responsive css handle this,
             // but since mobile browsers are often underpowered, 
             // it can help performance to get them out of the markup
-            var showIndicators = window.innerWidth >= 800;
-            showIndicators = false;
+            var showIndicators = false;
 
             var options = {
                 showHdIcon: showIndicators,
@@ -738,32 +765,6 @@
             }
         }
 
-        var supportsCaptureOption = false;
-        try {
-            var opts = Object.defineProperty({}, 'capture', {
-                get: function () {
-                    supportsCaptureOption = true;
-                }
-            });
-            window.addEventListener("test", null, opts);
-        } catch (e) { }
-
-        function addEventListenerWithOptions(target, type, handler, options) {
-            var optionsOrCapture = options;
-            if (!supportsCaptureOption) {
-                optionsOrCapture = options.capture;
-            }
-            target.addEventListener(type, handler, optionsOrCapture);
-        }
-
-        function removeEventListenerWithOptions(target, type, handler, options) {
-            var optionsOrCapture = options;
-            if (!supportsCaptureOption) {
-                optionsOrCapture = options.capture;
-            }
-            target.removeEventListener(type, handler, optionsOrCapture);
-        }
-
         function onTimerCreated(e, apiClient, data) {
 
             var programId = data.ProgramId;
@@ -826,13 +827,13 @@
 
             programGrid.addEventListener('focus', onProgramGridFocus, true);
 
-            addEventListenerWithOptions(programGrid, 'scroll', function (e) {
+            dom.addEventListener(programGrid, 'scroll', function (e) {
                 onProgramGridScroll(context, this, timeslotHeaders);
             }, {
                 passive: true
             });
 
-            addEventListenerWithOptions(timeslotHeaders, 'scroll', function () {
+            dom.addEventListener(timeslotHeaders, 'scroll', function () {
                 onTimeslotHeadersScroll(context, this, programGrid);
             }, {
                 passive: true
@@ -842,7 +843,25 @@
                 selectDate(context);
             });
 
+            context.querySelector('.btnSelectDateIcon').addEventListener('click', function () {
+                selectDate(context);
+            });
+
             context.querySelector('.btnUnlockGuide').addEventListener('click', function () {
+                currentStartIndex = 0;
+                channelsPromise = null;
+                reloadPage(context);
+            });
+
+            context.querySelector('.btnNextPage').addEventListener('click', function () {
+                currentStartIndex += currentChannelLimit;
+                channelsPromise = null;
+                reloadPage(context);
+            });
+
+            context.querySelector('.btnPreviousPage').addEventListener('click', function () {
+                currentStartIndex = Math.max(currentStartIndex - currentChannelLimit, 0);
+                channelsPromise = null;
                 reloadPage(context);
             });
 

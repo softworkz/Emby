@@ -133,7 +133,10 @@ namespace MediaBrowser.Server.Implementations.LiveTv
 
         void service_DataSourceChanged(object sender, EventArgs e)
         {
-            _taskManager.CancelIfRunningAndQueue<RefreshChannelsScheduledTask>();
+            if (!_isDisposed)
+            {
+                _taskManager.CancelIfRunningAndQueue<RefreshChannelsScheduledTask>();
+            }
         }
 
         public async Task<QueryResult<LiveTvChannel>> GetInternalChannels(LiveTvChannelQuery query, CancellationToken cancellationToken)
@@ -948,6 +951,8 @@ namespace MediaBrowser.Server.Implementations.LiveTv
 
             var queryResult = _libraryManager.QueryItems(internalQuery);
 
+            RemoveFields(options);
+
             var returnArray = (await _dtoService.GetBaseItemDtos(queryResult.Items, options, user).ConfigureAwait(false)).ToArray();
 
             var result = new QueryResult<BaseItemDto>
@@ -1027,6 +1032,8 @@ namespace MediaBrowser.Server.Implementations.LiveTv
             var internalResult = await GetRecommendedProgramsInternal(query, cancellationToken).ConfigureAwait(false);
 
             var user = _userManager.GetUserById(query.UserId);
+
+            RemoveFields(options);
 
             var returnArray = (await _dtoService.GetBaseItemDtos(internalResult.Items, options, user).ConfigureAwait(false)).ToArray();
 
@@ -1238,7 +1245,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv
             var programs = new List<Guid>();
             var channels = new List<Guid>();
 
-            var guideDays = GetGuideDays(list.Count);
+            var guideDays = GetGuideDays();
 
             _logger.Info("Refreshing guide with {0} days of guide data", guideDays);
 
@@ -1326,7 +1333,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv
         }
 
         private const int MaxGuideDays = 14;
-        private double GetGuideDays(int channelCount)
+        private double GetGuideDays()
         {
             var config = GetConfiguration();
 
@@ -1335,13 +1342,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv
                 return Math.Max(1, Math.Min(config.GuideDays.Value, MaxGuideDays));
             }
 
-            var programsPerDay = channelCount * 48;
-
-            const int maxPrograms = 24000;
-
-            var days = Math.Round((double)maxPrograms / programsPerDay);
-
-            return Math.Max(3, Math.Min(days, MaxGuideDays));
+            return 7;
         }
 
         private async Task<IEnumerable<Tuple<string, ChannelInfo>>> GetChannels(ILiveTvService service, CancellationToken cancellationToken)
@@ -1665,6 +1666,8 @@ namespace MediaBrowser.Server.Implementations.LiveTv
 
             var internalResult = await GetInternalRecordings(query, cancellationToken).ConfigureAwait(false);
 
+            RemoveFields(options);
+
             var returnArray = (await _dtoService.GetBaseItemDtos(internalResult.Items, options, user).ConfigureAwait(false)).ToArray();
 
             return new QueryResult<BaseItemDto>
@@ -1925,7 +1928,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv
 
             var channelIds = tuples.Select(i => i.Item2.Id.ToString("N")).Distinct().ToArray();
 
-            var programs = _libraryManager.GetItemList(new InternalItemsQuery(user)
+            var programs = options.AddCurrentProgram ? _libraryManager.GetItemList(new InternalItemsQuery(user)
             {
                 IncludeItemTypes = new[] { typeof(LiveTvProgram).Name },
                 ChannelIds = channelIds,
@@ -1935,7 +1938,9 @@ namespace MediaBrowser.Server.Implementations.LiveTv
                 SortBy = new[] { "StartDate" },
                 TopParentIds = new[] { GetInternalLiveTvFolder(CancellationToken.None).Result.Id.ToString("N") }
 
-            }).ToList();
+            }).ToList() : new List<BaseItem>();
+
+            RemoveFields(options);
 
             foreach (var tuple in tuples)
             {
@@ -1947,14 +1952,20 @@ namespace MediaBrowser.Server.Implementations.LiveTv
                 dto.ChannelType = channel.ChannelType;
                 dto.ServiceName = GetService(channel).Name;
 
-                dto.MediaSources = channel.GetMediaSources(true).ToList();
+                if (options.Fields.Contains(ItemFields.MediaSources))
+                {
+                    dto.MediaSources = channel.GetMediaSources(true).ToList();
+                }
 
                 var channelIdString = channel.Id.ToString("N");
-                var currentProgram = programs.FirstOrDefault(i => string.Equals(i.ChannelId, channelIdString));
-
-                if (currentProgram != null)
+                if (options.AddCurrentProgram)
                 {
-                    dto.CurrentProgram = _dtoService.GetBaseItemDto(currentProgram, options, user);
+                    var currentProgram = programs.FirstOrDefault(i => string.Equals(i.ChannelId, channelIdString));
+
+                    if (currentProgram != null)
+                    {
+                        dto.CurrentProgram = _dtoService.GetBaseItemDto(currentProgram, options, user);
+                    }
                 }
             }
         }
@@ -2309,6 +2320,7 @@ namespace MediaBrowser.Server.Implementations.LiveTv
         }
 
         private readonly object _disposeLock = new object();
+        private bool _isDisposed = false;
         /// <summary>
         /// Releases unmanaged and - optionally - managed resources.
         /// </summary>
@@ -2317,6 +2329,8 @@ namespace MediaBrowser.Server.Implementations.LiveTv
         {
             if (dispose)
             {
+                _isDisposed = true;
+
                 lock (_disposeLock)
                 {
                     foreach (var stream in _openStreams.Values.ToList())
@@ -2445,6 +2459,14 @@ namespace MediaBrowser.Server.Implementations.LiveTv
             var folder = await GetInternalLiveTvFolder(cancellationToken).ConfigureAwait(false);
 
             return _dtoService.GetBaseItemDto(folder, new DtoOptions(), user);
+        }
+
+        private void RemoveFields(DtoOptions options)
+        {
+            options.Fields.Remove(ItemFields.CanDelete);
+            options.Fields.Remove(ItemFields.CanDownload);
+            options.Fields.Remove(ItemFields.DisplayPreferencesId);
+            options.Fields.Remove(ItemFields.Etag);
         }
 
         public async Task<Folder> GetInternalLiveTvFolder(CancellationToken cancellationToken)

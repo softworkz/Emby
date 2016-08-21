@@ -1,4 +1,4 @@
-﻿define(['layoutManager', 'cardBuilder', 'datetime', 'mediaInfo', 'backdrop', 'listView', 'itemContextMenu', 'itemHelper', 'userdataButtons', 'dom', 'indicators', 'scrollStyles', 'emby-itemscontainer'], function (layoutManager, cardBuilder, datetime, mediaInfo, backdrop, listView, itemContextMenu, itemHelper, userdataButtons, dom, indicators) {
+﻿define(['layoutManager', 'cardBuilder', 'datetime', 'mediaInfo', 'backdrop', 'listView', 'itemContextMenu', 'itemHelper', 'userdataButtons', 'dom', 'indicators', 'apphost', 'scrollStyles', 'emby-itemscontainer', 'emby-checkbox'], function (layoutManager, cardBuilder, datetime, mediaInfo, backdrop, listView, itemContextMenu, itemHelper, userdataButtons, dom, indicators, appHost) {
 
     var currentItem;
 
@@ -63,16 +63,35 @@
 
     function getContextMenuOptions(item, button) {
 
-        return {
+        var options = {
             item: item,
             open: false,
             play: false,
             queue: false,
             playAllFromHere: false,
             queueAllFromHere: false,
-            sync: false,
             positionTo: button
         };
+
+        if (appHost.supports('sync')) {
+            // Will be displayed via button
+            options.syncLocal = false;
+        } else {
+            // Will be displayed via button
+            options.sync = false;
+        }
+
+        return options;
+    }
+
+    function updateSyncStatus(page, item) {
+
+        var i, length;
+        var elems = page.querySelectorAll('.chkOffline');
+        for (i = 0, length = elems.length; i < length; i++) {
+
+            elems[i].checked = item.SyncPercent != null;
+        }
     }
 
     function reloadFromItem(page, params, item) {
@@ -143,9 +162,17 @@
             }
 
             if (itemHelper.canSync(user, item)) {
-                hideAll(page, 'btnSync', true);
+                if (appHost.supports('sync')) {
+                    hideAll(page, 'syncLocalContainer', true);
+                    hideAll(page, 'btnSync');
+                } else {
+                    hideAll(page, 'syncLocalContainer');
+                    hideAll(page, 'btnSync', true);
+                }
+                updateSyncStatus(page, item);
             } else {
                 hideAll(page, 'btnSync');
+                hideAll(page, 'syncLocalContainer');
             }
 
             if (item.Type == 'Program' && item.TimerId) {
@@ -1022,7 +1049,7 @@
 
         _childrenItemsFunction = null;
 
-        var fields = "ItemCounts,AudioInfo,PrimaryImageAspectRatio,SyncInfo,CanDelete";
+        var fields = "ItemCounts,AudioInfo,PrimaryImageAspectRatio,BasicSyncInfo,CanDelete";
 
         var query = {
             ParentId: item.Id,
@@ -1100,7 +1127,8 @@
                     showTitle: true,
                     centerText: true,
                     lazy: true,
-                    overlayPlayButton: true
+                    overlayPlayButton: true,
+                    allowBottomPadding: !scrollX
                 });
             }
             else if (item.Type == "Season") {
@@ -1114,7 +1142,7 @@
                     overlayText: true,
                     lazy: true,
                     showDetailsMenu: true,
-                    overlayPlayButton: AppInfo.enableAppLayouts
+                    overlayPlayButton: AppInfo.enableAppLayouts,
                 });
             }
             else if (item.Type == "GameSystem") {
@@ -1522,8 +1550,7 @@
             page.querySelector('#themeSongsCollapsible').classList.remove('hide');
 
             var html = listView.getListViewHtml({
-                items: items,
-                sortBy: query.SortBy
+                items: items
             });
 
             page.querySelector('#themeSongsContent').innerHTML = html;
@@ -1664,7 +1691,7 @@
 
             var displayType = Globalize.translate('MediaInfoStreamType' + stream.Type);
 
-            html += '<div class="mediaInfoStreamType">' + displayType + '</div>';
+            html += '<h3 class="mediaInfoStreamType">' + displayType + '</h3>';
 
             var attributes = [];
 
@@ -1829,7 +1856,7 @@
                 imgUrl = "css/images/items/detail/video.png";
             }
 
-            html += '<div class="cardPadder"></div>';
+            html += '<div class="cardPadder cardPadder-backdrop"></div>';
 
             html += '<div class="cardContent">';
             html += '<div class="cardImage lazy" data-src="' + imgUrl + '"></div>';
@@ -2030,6 +2057,31 @@
 
     return function (view, params) {
 
+        function resetSyncStatus() {
+            updateSyncStatus(view, currentItem);
+        }
+
+        function onSyncLocalClick() {
+
+            if (this.checked) {
+                require(['syncDialog'], function (syncDialog) {
+                    syncDialog.showMenu({
+                        items: [currentItem]
+                    }).then(function () {
+                        reload(view, params);
+                    }, resetSyncStatus);
+                });
+            } else {
+
+                require(['confirm'], function (confirm) {
+
+                    confirm(Globalize.translate('ConfirmRemoveDownload')).then(function () {
+                        ApiClient.cancelSyncItems([currentItem.Id]);
+                    }, resetSyncStatus);
+                });
+            }
+        }
+
         function onPlayTrailerClick() {
             playTrailer(view);
         }
@@ -2082,6 +2134,11 @@
         elems = view.querySelectorAll('.btnSync');
         for (i = 0, length = elems.length; i < length; i++) {
             elems[i].addEventListener('click', onSyncClick);
+        }
+
+        elems = view.querySelectorAll('.chkOffline');
+        for (i = 0, length = elems.length; i < length; i++) {
+            elems[i].addEventListener('change', onSyncLocalClick);
         }
 
         elems = view.querySelectorAll('.btnRecord,.btnFloatingRecord');
@@ -2171,6 +2228,10 @@
             }
 
         }
+
+        view.querySelector('.chapterSettingsButton').addEventListener('click', function () {
+            Dashboard.navigate('librarysettings.html');
+        });
 
         view.addEventListener('viewbeforeshow', function () {
             var page = this;

@@ -520,6 +520,10 @@ define(['appSettings', 'userSettings', 'appStorage', 'datetime'], function (appS
                                 api_key: ApiClient.accessToken()
                             };
 
+                            if (mediaSource.ETag) {
+                                directOptions.Tag = mediaSource.ETag;
+                            }
+
                             if (mediaSource.LiveStreamId) {
                                 directOptions.LiveStreamId = mediaSource.LiveStreamId;
                             }
@@ -578,6 +582,10 @@ define(['appSettings', 'userSettings', 'appStorage', 'datetime'], function (appS
                                 api_key: ApiClient.accessToken()
                             };
 
+                            if (mediaSource.ETag) {
+                                directOptions.Tag = mediaSource.ETag;
+                            }
+
                             if (mediaSource.LiveStreamId) {
                                 directOptions.LiveStreamId = mediaSource.LiveStreamId;
                             }
@@ -614,7 +622,7 @@ define(['appSettings', 'userSettings', 'appStorage', 'datetime'], function (appS
 
                 if (playMethod == 'DirectPlay' && mediaSource.Protocol == 'File') {
 
-                    require(['localassetmanager'], function () {
+                    require(['localassetmanager'], function (LocalAssetManager) {
 
                         LocalAssetManager.translateFilePath(resultInfo.url).then(function (path) {
 

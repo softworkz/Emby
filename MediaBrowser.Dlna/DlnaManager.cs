@@ -73,8 +73,13 @@ namespace MediaBrowser.Dlna
             lock (_profiles)
             {
                 var list = _profiles.Values.ToList();
-                return list.Select(i => i.Item2).OrderBy(i => i.Name);
+                return list
+                    .OrderBy(i => i.Item1.Info.Type == DeviceProfileType.User ? 0 : 1)
+                    .ThenBy(i => i.Item1.Info.Name)
+                    .Select(i => i.Item2)
+                    .ToList();
             }
+
         }
 
         public DeviceProfile GetDefaultProfile()
@@ -248,8 +253,7 @@ namespace MediaBrowser.Dlna
                         //_logger.Debug("IsMatch-Substring value: {0} testValue: {1} isMatch: {2}", value, header.Value, isMatch);
                         return isMatch;
                     case HeaderMatchType.Regex:
-                        // Reports of IgnoreCase not working on linux so try it a couple different ways.
-                        return Regex.IsMatch(value, header.Value, RegexOptions.IgnoreCase) || Regex.IsMatch(value.ToUpper(), header.Value.ToUpper(), RegexOptions.IgnoreCase);
+                        return Regex.IsMatch(value, header.Value, RegexOptions.IgnoreCase);
                     default:
                         throw new ArgumentException("Unrecognized HeaderMatchType");
                 }

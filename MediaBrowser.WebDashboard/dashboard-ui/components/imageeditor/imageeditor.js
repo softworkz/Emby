@@ -283,7 +283,6 @@
 
                 dlg.classList.add('ui-body-' + theme);
                 dlg.classList.add('background-theme-' + theme);
-                dlg.classList.add('popupEditor');
 
                 var html = '';
                 html += '<h2 class="dialogHeader">';
@@ -291,7 +290,7 @@
                 html += '<div style="display:inline-block;margin-left:.6em;vertical-align:middle;">' + item.Name + '</div>';
                 html += '</h2>';
 
-                html += '<div class="editorContent">';
+                html += '<div class="editorContent" style="padding:0 1em;">';
                 html += Globalize.translateDocument(template);
                 html += '</div>';
 

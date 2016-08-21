@@ -8,7 +8,8 @@ define(['layoutManager', 'globalize', 'css!./dialog'], function (layoutManager, 
                 actionSheet.show({
 
                     title: options.text,
-                    items: options.buttons
+                    items: options.buttons,
+                    timeout: options.timeout
 
                 }).then(resolve, reject);
             });
@@ -36,11 +37,16 @@ define(['layoutManager', 'globalize', 'css!./dialog'], function (layoutManager, 
         }
 
         var dlg = dialogHelper.createDialog(dialogOptions);
+
+        dlg.classList.add('promptDialog');
+
         var html = '';
+
+        html += '<div class="promptDialogContent">';
 
         if (options.title) {
             html += '<h2>' + options.title + '</h2>';
-        } 
+        }
 
         var text = options.html || options.text;
 
@@ -48,16 +54,17 @@ define(['layoutManager', 'globalize', 'css!./dialog'], function (layoutManager, 
             html += '<div style="margin:1em 0;">' + text + '</div>';
         }
 
-        html += '<div class="dialogButtons">';
+        html += '<div class="promptDialogButtons">';
 
         var i, length;
         for (i = 0, length = options.buttons.length; i < length; i++) {
 
             var item = options.buttons[i];
             var autoFocus = i == 0 ? ' autofocus' : '';
-            html += '<button is="emby-button" type="button" class="btnOption dialogButton" data-id="' + item.id + '"' + autoFocus + '>' + item.name + '</button>';
+            html += '<button is="emby-button" type="button" class="btnOption promptDialogButton" data-id="' + item.id + '"' + autoFocus + '>' + item.name + '</button>';
         }
 
+        html += '</div>';
         html += '</div>';
 
         dlg.innerHTML = html;

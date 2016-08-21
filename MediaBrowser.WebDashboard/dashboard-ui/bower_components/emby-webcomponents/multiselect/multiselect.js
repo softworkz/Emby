@@ -140,26 +140,6 @@
         }
     }
 
-    function shake(elem, iterations) {
-        var keyframes = [
-          { transform: 'translate3d(0, 0, 0)', offset: 0 },
-          { transform: 'translate3d(-10px, 0, 0)', offset: 0.1 },
-          { transform: 'translate3d(10px, 0, 0)', offset: 0.2 },
-          { transform: 'translate3d(-10px, 0, 0)', offset: 0.3 },
-          { transform: 'translate3d(10px, 0, 0)', offset: 0.4 },
-          { transform: 'translate3d(-10px, 0, 0)', offset: 0.5 },
-          { transform: 'translate3d(10px, 0, 0)', offset: 0.6 },
-          { transform: 'translate3d(-10px, 0, 0)', offset: 0.7 },
-          { transform: 'translate3d(10px, 0, 0)', offset: 0.8 },
-          { transform: 'translate3d(-10px, 0, 0)', offset: 0.9 },
-          { transform: 'translate3d(0, 0, 0)', offset: 1 }];
-        var timing = { duration: 900, iterations: iterations };
-
-        if (elem.animate) {
-            elem.animate(keyframes, timing);
-        }
-    }
-
     function showSelectionCommands() {
 
         var selectionCommandsPanel = currentSelectionCommandsPanel;
@@ -189,10 +169,6 @@
             var btnSelectionPanelOptions = selectionCommandsPanel.querySelector('.btnSelectionPanelOptions');
 
             btnSelectionPanelOptions.addEventListener('click', showMenuForSelectedItems);
-
-            if (!browser.mobile) {
-                shake(btnSelectionPanelOptions, 1);
-            }
         }
     }
 
@@ -200,23 +176,22 @@
 
         return new Promise(function (resolve, reject) {
 
-            var msg = globalize.translate('ConfirmDeleteItem');
-            var title = globalize.translate('HeaderDeleteItem');
+            var msg = globalize.translate('sharedcomponents#ConfirmDeleteItem');
+            var title = globalize.translate('sharedcomponents#HeaderDeleteItem');
 
             if (itemIds.length > 1) {
-                msg = globalize.translate('ConfirmDeleteItems');
-                title = globalize.translate('HeaderDeleteItems');
+                msg = globalize.translate('sharedcomponents#ConfirmDeleteItems');
+                title = globalize.translate('sharedcomponents#HeaderDeleteItems');
             }
 
             require(['confirm'], function (confirm) {
 
                 confirm(msg, title).then(function () {
-
                     var promises = itemIds.map(function (itemId) {
                         apiClient.deleteItem(itemId);
                     });
 
-                    resolve();
+                    Promise.all(promises).then(resolve);
                 }, reject);
 
             });
@@ -265,6 +240,13 @@
                 ironIcon: 'call-merge'
             });
 
+            if (user.Policy.EnableSync && appHost.supports('sync')) {
+                menuItems.push({
+                    name: globalize.translate('sharedcomponents#MakeAvailableOffline'),
+                    id: 'synclocal'
+                });
+            }
+
             menuItems.push({
                 name: globalize.translate('sharedcomponents#MarkPlayed'),
                 id: 'markplayed'
@@ -281,12 +263,14 @@
                 ironIcon: 'refresh'
             });
 
-            menuItems.push({
-                name: globalize.translate('sharedcomponents#Sync'),
-                id: 'sync',
-                ironIcon: 'sync'
-            });
-            dispatchNeedsRefresh();
+            if (user.Policy.EnableSync) {
+                menuItems.push({
+                    name: globalize.translate('sharedcomponents#SyncToOtherDevice'),
+                    id: 'sync',
+                    ironIcon: 'sync'
+                });
+            }
+
             require(['actionsheet'], function (actionsheet) {
 
                 actionsheet.show({
@@ -308,6 +292,7 @@
                                     });
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'playlist':
                                 require(['playlistEditor'], function (playlistEditor) {
@@ -317,12 +302,14 @@
                                     });
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'delete':
-                                deleteItems(items).then(function () {
+                                deleteItems(apiClient, items).then(function () {
                                     embyRouter.goHome();
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'groupvideos':
                                 combineVersions(apiClient, items);
@@ -332,12 +319,14 @@
                                     apiClient.markPlayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'markunplayed':
                                 items.forEach(function (itemId) {
                                     apiClient.markUnplayed(apiClient.getCurrentUserId(), itemId);
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'refresh':
                                 require(['refreshDialog'], function (refreshDialog) {
@@ -347,6 +336,7 @@
                                     }).show();
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             case 'sync':
                                 require(['syncDialog'], function (syncDialog) {
@@ -359,6 +349,20 @@
                                     });
                                 });
                                 hideSelections();
+                                dispatchNeedsRefresh();
+                                break;
+                            case 'synclocal':
+                                require(['syncDialog'], function (syncDialog) {
+                                    syncDialog.showMenu({
+                                        items: items.map(function (i) {
+                                            return {
+                                                Id: i
+                                            };
+                                        })
+                                    });
+                                });
+                                hideSelections();
+                                dispatchNeedsRefresh();
                                 break;
                             default:
                                 break;
@@ -488,7 +492,7 @@
         function initTapHold(element) {
 
             // mobile safari doesn't allow contextmenu override
-            if (browser.mobile && !browser.safari) {
+            if (browser.touch && !browser.safari) {
                 container.addEventListener('contextmenu', onTapHold);
             } else {
                 require(['hammer'], function (Hammer) {

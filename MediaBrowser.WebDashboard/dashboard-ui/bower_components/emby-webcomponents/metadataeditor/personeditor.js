@@ -25,9 +25,6 @@
 
                 var dlg = dialogHelper.createDialog(dialogOptions);
 
-                dlg.classList.add('ui-body-b');
-                dlg.classList.add('background-theme-b');
-
                 dlg.classList.add('formDialog');
 
                 var html = '';
@@ -43,7 +40,7 @@
                 dlg.querySelector('.txtPersonRole', dlg).value = person.Role || '';
 
                 if (layoutManager.tv) {
-                    centerFocus(dlg.querySelector('.dialogContent'), false, true);
+                    centerFocus(dlg.querySelector('.formDialogContent'), false, true);
                 }
 
                 dialogHelper.open(dlg);
@@ -51,7 +48,7 @@
                 dlg.addEventListener('close', function () {
 
                     if (layoutManager.tv) {
-                        centerFocus(dlg.querySelector('.dialogContent'), false, false);
+                        centerFocus(dlg.querySelector('.formDialogContent'), false, false);
                     }
 
                     if (submitted) {
