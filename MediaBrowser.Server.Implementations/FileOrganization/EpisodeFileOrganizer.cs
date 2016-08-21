@@ -513,7 +513,7 @@ namespace MediaBrowser.Server.Implementations.FileOrganization
                 .ToList();
         }
 
-        private void PerformFileSorting(TvFileOrganizationOptions options, FileOrganizationResult result)
+        protected void PerformFileSorting(TvFileOrganizationOptions options, FileOrganizationResult result)
         {
             _libraryMonitor.ReportFileSystemChangeBeginning(result.TargetPath);
 
