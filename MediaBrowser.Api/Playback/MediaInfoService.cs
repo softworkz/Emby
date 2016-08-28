@@ -121,7 +121,7 @@ namespace MediaBrowser.Api.Playback
                 var item = _libraryManager.GetItemById(request.ItemId);
 
                 SetDeviceSpecificData(item, result.MediaSource, profile, authInfo, request.MaxStreamingBitrate,
-                    request.StartTimeTicks ?? 0, result.MediaSource.Id, request.AudioStreamIndex,
+                    request.StartTimeTicks ?? 0, false, result.MediaSource.Id, request.AudioStreamIndex,
                     request.SubtitleStreamIndex, request.PlaySessionId, request.UserId);
             }
             else
@@ -162,7 +162,7 @@ namespace MediaBrowser.Api.Playback
             {
                 var mediaSourceId = request.MediaSourceId;
 
-                SetDeviceSpecificData(request.Id, info, profile, authInfo, request.MaxStreamingBitrate ?? profile.MaxStreamingBitrate, request.StartTimeTicks ?? 0, mediaSourceId, request.AudioStreamIndex, request.SubtitleStreamIndex, request.UserId);
+                SetDeviceSpecificData(request.Id, info, profile, authInfo, request.MaxStreamingBitrate ?? profile.MaxStreamingBitrate, request.StartTimeTicks ?? 0, request.CanQuickSeek ?? false, mediaSourceId, request.AudioStreamIndex, request.SubtitleStreamIndex, request.UserId);
             }
 
             return ToOptimizedResult(info);
@@ -222,6 +222,7 @@ namespace MediaBrowser.Api.Playback
             AuthorizationInfo auth,
             int? maxBitrate,
             long startTimeTicks,
+            bool canQuickSeek,
             string mediaSourceId,
             int? audioStreamIndex,
             int? subtitleStreamIndex,
@@ -231,7 +232,7 @@ namespace MediaBrowser.Api.Playback
 
             foreach (var mediaSource in result.MediaSources)
             {
-                SetDeviceSpecificData(item, mediaSource, profile, auth, maxBitrate, startTimeTicks, mediaSourceId, audioStreamIndex, subtitleStreamIndex, result.PlaySessionId, userId);
+                SetDeviceSpecificData(item, mediaSource, profile, auth, maxBitrate, startTimeTicks, canQuickSeek, mediaSourceId, audioStreamIndex, subtitleStreamIndex, result.PlaySessionId, userId);
             }
 
             SortMediaSources(result, maxBitrate);
@@ -243,6 +244,7 @@ namespace MediaBrowser.Api.Playback
             AuthorizationInfo auth,
             int? maxBitrate,
             long startTimeTicks,
+            bool canQuickSeek,
             string mediaSourceId,
             int? audioStreamIndex,
             int? subtitleStreamIndex,
@@ -362,6 +364,12 @@ namespace MediaBrowser.Api.Playback
                     if (streamInfo.PlayMethod == PlayMethod.Transcode)
                     {
                         streamInfo.StartPositionTicks = startTimeTicks;
+
+                        if (canQuickSeek)
+                        {
+                            streamInfo.TryQuickSeek = BaseStreamingService.CanUseQuickSeek(_config.Configuration, false, mediaSource.Protocol, streamInfo.Container, streamInfo.RunTimeTicks);
+                        }
+
                         mediaSource.TranscodingUrl = streamInfo.ToUrl("-", auth.Token).TrimStart('-');
                         mediaSource.TranscodingContainer = streamInfo.Container;
                         mediaSource.TranscodingSubProtocol = streamInfo.SubProtocol;
