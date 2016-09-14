@@ -646,6 +646,8 @@ namespace MediaBrowser.Providers.Manager
         {
             var refreshResult = new RefreshResult();
 
+            var results = new List<MetadataResult<TItemType>>();
+
             foreach (var provider in providers)
             {
                 var providerName = provider.GetType().Name;
@@ -662,7 +664,7 @@ namespace MediaBrowser.Providers.Manager
 
                     if (result.HasMetadata)
                     {
-                        MergeData(result, temp, new List<MetadataFields>(), false, false);
+                        results.Add(result);
 
                         refreshResult.UpdateType = refreshResult.UpdateType | ItemUpdateType.MetadataDownload;
                     }
@@ -681,6 +683,22 @@ namespace MediaBrowser.Providers.Manager
                     refreshResult.ErrorMessage = ex.Message;
                     Logger.ErrorException("Error in {0}", ex, provider.Name);
                 }
+            }
+
+            if (!string.IsNullOrEmpty(id.MetadataLanguage) && temp.Item is BaseItem)
+            {
+                foreach (var result in results)
+                {
+                    if (!string.IsNullOrEmpty(result.ResultLanguage) && result.ResultLanguage == id.MetadataLanguage)
+                    {
+                        ProviderUtils.MergeLocalizedBaseItemData(result.Item as BaseItem, temp.Item as BaseItem);
+                    }
+                }
+            }
+
+            foreach (var result in results)
+            {
+                MergeData(result, temp, new List<MetadataFields>(), false, false);
             }
 
             return refreshResult;

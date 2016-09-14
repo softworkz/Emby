@@ -210,6 +210,36 @@ namespace MediaBrowser.Providers.Manager
             }
         }
 
+        public static void MergeLocalizedBaseItemData<T>(T source,
+            T target)
+            where T : BaseItem
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException("source");
+            }
+            if (target == null)
+            {
+                throw new ArgumentNullException("target");
+            }
+
+            if (string.IsNullOrEmpty(target.Name))
+            {
+                // Safeguard against incoming data having an emtpy name
+                if (!string.IsNullOrWhiteSpace(source.Name))
+                {
+                    target.Name = source.Name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(target.Overview))
+            {
+                target.Overview = source.Overview;
+            }
+
+            MergeTaglines(source, target, new List<MetadataFields>(), false);
+        }
+
         public static void MergeMetadataSettings(BaseItem source,
            BaseItem target)
         {

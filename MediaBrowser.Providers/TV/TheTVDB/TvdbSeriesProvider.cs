@@ -159,7 +159,7 @@ namespace MediaBrowser.Providers.TV
             var seriesXmlPath = GetSeriesXmlPath(seriesProviderIds, metadataLanguage);
             var actorsXmlPath = Path.Combine(seriesDataPath, "actors.xml");
 
-            FetchSeriesInfo(series, seriesXmlPath, cancellationToken);
+            FetchSeriesInfo(result, seriesXmlPath, cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -607,8 +607,10 @@ namespace MediaBrowser.Providers.TV
             return name.Trim();
         }
 
-        private void FetchSeriesInfo(Series item, string seriesXmlPath, CancellationToken cancellationToken)
+        private void FetchSeriesInfo(MetadataResult<Series> result, string seriesXmlPath, CancellationToken cancellationToken)
         {
+            Series item = result.Item;
+
             var settings = new XmlReaderSettings
             {
                 CheckCharacters = false,
@@ -639,7 +641,7 @@ namespace MediaBrowser.Providers.TV
                                     {
                                         using (var subtree = reader.ReadSubtree())
                                         {
-                                            FetchDataFromSeriesNode(item, subtree, cancellationToken);
+                                            FetchDataFromSeriesNode(result, subtree, cancellationToken);
                                         }
                                         break;
                                     }
@@ -861,8 +863,10 @@ namespace MediaBrowser.Providers.TV
             }
         }
 
-        private void FetchDataFromSeriesNode(Series item, XmlReader reader, CancellationToken cancellationToken)
+        private void FetchDataFromSeriesNode(MetadataResult<Series> result, XmlReader reader, CancellationToken cancellationToken)
         {
+            Series item = result.Item;
+
             reader.MoveToContent();
 
             // Loop through each element
@@ -883,6 +887,12 @@ namespace MediaBrowser.Providers.TV
                         case "Overview":
                             {
                                 item.Overview = (reader.ReadElementContentAsString() ?? string.Empty).Trim();
+                                break;
+                            }
+
+                        case "Language":
+                            {
+                                result.ResultLanguage = (reader.ReadElementContentAsString() ?? string.Empty).Trim();
                                 break;
                             }
 
