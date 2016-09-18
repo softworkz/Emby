@@ -689,7 +689,7 @@ namespace MediaBrowser.Providers.Manager
             {
                 foreach (var result in results)
                 {
-                    if (!string.IsNullOrEmpty(result.ResultLanguage) && result.ResultLanguage == id.MetadataLanguage)
+                    if (!string.IsNullOrEmpty(result.ResultLanguage) && result.ResultLanguage == id.MetadataLanguage && result.QueriedById)
                     {
                         ProviderUtils.MergeLocalizedBaseItemData(result.Item as BaseItem, temp.Item as BaseItem);
                     }
