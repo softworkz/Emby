@@ -27,7 +27,6 @@ namespace MediaBrowser.Model.Configuration
         public bool DisplayMissingEpisodes { get; set; }
         public bool DisplayUnairedEpisodes { get; set; }
 
-        public string[] ExcludeFoldersFromGrouping { get; set; }
         public string[] GroupedFolders { get; set; }
 
         public SubtitlePlaybackMode SubtitleMode { get; set; }
@@ -57,6 +56,7 @@ namespace MediaBrowser.Model.Configuration
 
             HidePlayedInLatest = true;
             PlayDefaultAudioTrack = true;
+            DisplayMissingEpisodes = true;
 
             LatestItemsExcludes = new string[] { };
             OrderedViews = new string[] { };

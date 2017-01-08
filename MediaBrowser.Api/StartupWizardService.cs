@@ -115,11 +115,11 @@ namespace MediaBrowser.Api
             config.EnableStandaloneMusicKeys = true;
             config.EnableCaseSensitiveItemIds = true;
             config.EnableFolderView = true;
-            config.SchemaVersion = 109;
             config.EnableSimpleArtistDetection = true;
             config.SkipDeserializationForBasicTypes = true;
             config.SkipDeserializationForPrograms = true;
             config.SkipDeserializationForAudio = true;
+            config.EnableSeriesPresentationUniqueKey = true;
         }
 
         public void Post(UpdateStartupConfiguration request)

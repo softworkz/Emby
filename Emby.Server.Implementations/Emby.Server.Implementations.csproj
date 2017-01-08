@@ -34,7 +34,9 @@
   <ItemGroup>
     <Compile Include="Activity\ActivityLogEntryPoint.cs" />
     <Compile Include="Activity\ActivityManager.cs" />
+    <Compile Include="Activity\ActivityRepository.cs" />
     <Compile Include="Branding\BrandingConfigurationFactory.cs" />
+    <Compile Include="Browser\BrowserLauncher.cs" />
     <Compile Include="Channels\ChannelConfigurations.cs" />
     <Compile Include="Channels\ChannelDynamicMediaSourceProvider.cs" />
     <Compile Include="Channels\ChannelImageProvider.cs" />
@@ -49,8 +51,16 @@
     <Compile Include="Connect\ConnectManager.cs" />
     <Compile Include="Connect\Responses.cs" />
     <Compile Include="Connect\Validator.cs" />
+    <Compile Include="Data\ManagedConnection.cs" />
+    <Compile Include="Data\SqliteDisplayPreferencesRepository.cs" />
+    <Compile Include="Data\SqliteFileOrganizationRepository.cs" />
+    <Compile Include="Data\SqliteItemRepository.cs" />
+    <Compile Include="Data\SqliteUserDataRepository.cs" />
+    <Compile Include="Data\SqliteUserRepository.cs" />
+    <Compile Include="Data\TypeMapper.cs" />
     <Compile Include="Devices\CameraUploadsDynamicFolder.cs" />
     <Compile Include="Devices\DeviceManager.cs" />
+    <Compile Include="Devices\DeviceRepository.cs" />
     <Compile Include="Dto\DtoService.cs" />
     <Compile Include="EntryPoints\AutomaticRestartEntryPoint.cs" />
     <Compile Include="EntryPoints\KeepServerAwake.cs" />
@@ -59,11 +69,15 @@
     <Compile Include="EntryPoints\RecordingNotifier.cs" />
     <Compile Include="EntryPoints\RefreshUsersMetadata.cs" />
     <Compile Include="EntryPoints\ServerEventNotifier.cs" />
+    <Compile Include="EntryPoints\StartupWizard.cs" />
     <Compile Include="EntryPoints\SystemEvents.cs" />
     <Compile Include="EntryPoints\UdpServerEntryPoint.cs" />
     <Compile Include="EntryPoints\UsageEntryPoint.cs" />
     <Compile Include="EntryPoints\UsageReporter.cs" />
     <Compile Include="EntryPoints\UserDataChangeNotifier.cs" />
+    <Compile Include="FFMpeg\FFMpegInfo.cs" />
+    <Compile Include="FFMpeg\FFMpegInstallInfo.cs" />
+    <Compile Include="FFMpeg\FFMpegLoader.cs" />
     <Compile Include="FileOrganization\EpisodeFileOrganizer.cs" />
     <Compile Include="FileOrganization\Extensions.cs" />
     <Compile Include="FileOrganization\FileOrganizationNotifier.cs" />
@@ -106,6 +120,7 @@
     <Compile Include="Library\Resolvers\Audio\MusicAlbumResolver.cs" />
     <Compile Include="Library\Resolvers\Audio\MusicArtistResolver.cs" />
     <Compile Include="Library\Resolvers\BaseVideoResolver.cs" />
+    <Compile Include="Library\Resolvers\Books\BookResolver.cs" />
     <Compile Include="Library\Resolvers\FolderResolver.cs" />
     <Compile Include="Library\Resolvers\ItemResolver.cs" />
     <Compile Include="Library\Resolvers\Movies\BoxSetResolver.cs" />
@@ -165,6 +180,9 @@
     <Compile Include="LiveTv\TunerHosts\QueueStream.cs" />
     <Compile Include="Localization\LocalizationManager.cs" />
     <Compile Include="MediaEncoder\EncodingManager.cs" />
+    <Compile Include="Migrations\IVersionMigration.cs" />
+    <Compile Include="Migrations\LibraryScanMigration.cs" />
+    <Compile Include="Migrations\UpdateLevelMigration.cs" />
     <Compile Include="News\NewsEntryPoint.cs" />
     <Compile Include="News\NewsService.cs" />
     <Compile Include="Notifications\CoreNotificationTypes.cs" />
@@ -173,8 +191,11 @@
     <Compile Include="Notifications\NotificationConfigurationFactory.cs" />
     <Compile Include="Notifications\NotificationManager.cs" />
     <Compile Include="Notifications\Notifications.cs" />
+    <Compile Include="Notifications\SqliteNotificationsRepository.cs" />
     <Compile Include="Notifications\WebSocketNotifier.cs" />
-    <Compile Include="Persistence\CleanDatabaseScheduledTask.cs" />
+    <Compile Include="Data\BaseSqliteRepository.cs" />
+    <Compile Include="Data\CleanDatabaseScheduledTask.cs" />
+    <Compile Include="Data\SqliteExtensions.cs" />
     <Compile Include="Photos\PhotoAlbumImageProvider.cs" />
     <Compile Include="Playlists\PlaylistImageProvider.cs" />
     <Compile Include="Playlists\PlaylistManager.cs" />
@@ -186,6 +207,7 @@
     <Compile Include="ScheduledTasks\RefreshIntrosTask.cs" />
     <Compile Include="ScheduledTasks\RefreshMediaLibraryTask.cs" />
     <Compile Include="ScheduledTasks\SystemUpdateTask.cs" />
+    <Compile Include="Security\AuthenticationRepository.cs" />
     <Compile Include="Security\EncryptionManager.cs" />
     <Compile Include="Security\MBLicenseFile.cs" />
     <Compile Include="Security\PluginSecurityManager.cs" />
@@ -197,6 +219,7 @@
     <Compile Include="Session\SessionWebSocketListener.cs" />
     <Compile Include="Session\WebSocketController.cs" />
     <Compile Include="Social\SharingManager.cs" />
+    <Compile Include="Social\SharingRepository.cs" />
     <Compile Include="Sorting\AiredEpisodeOrderComparer.cs" />
     <Compile Include="Sorting\AirTimeComparer.cs" />
     <Compile Include="Sorting\AlbumArtistComparer.cs" />
@@ -228,6 +251,7 @@
     <Compile Include="Sorting\SortNameComparer.cs" />
     <Compile Include="Sorting\StartDateComparer.cs" />
     <Compile Include="Sorting\StudioComparer.cs" />
+    <Compile Include="StartupOptions.cs" />
     <Compile Include="Sync\AppSyncProvider.cs" />
     <Compile Include="Sync\CloudSyncProfile.cs" />
     <Compile Include="Sync\IHasSyncQuality.cs" />
@@ -243,6 +267,7 @@
     <Compile Include="Sync\SyncManager.cs" />
     <Compile Include="Sync\SyncNotificationEntryPoint.cs" />
     <Compile Include="Sync\SyncRegistrationInfo.cs" />
+    <Compile Include="Sync\SyncRepository.cs" />
     <Compile Include="Sync\TargetDataProvider.cs" />
     <Compile Include="TV\SeriesPostScanTask.cs" />
     <Compile Include="TV\TVSeriesManager.cs" />
@@ -283,12 +308,20 @@
       <Project>{4f26d5d8-a7b0-42b3-ba42-7cb7d245934e}</Project>
       <Name>SocketHttpListener.Portable</Name>
     </ProjectReference>
-    <Reference Include="Emby.XmlTv, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Emby.XmlTv.1.0.1\lib\portable-net45+win8\Emby.XmlTv.dll</HintPath>
+    <Reference Include="Emby.XmlTv, Version=1.0.6193.39741, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Emby.XmlTv.1.0.3\lib\portable-net45+win8\Emby.XmlTv.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="MediaBrowser.Naming, Version=1.0.6159.25070, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\MediaBrowser.Naming.1.0.2\lib\portable-net45+win8\MediaBrowser.Naming.dll</HintPath>
+    <Reference Include="MediaBrowser.Naming, Version=1.0.6201.24431, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MediaBrowser.Naming.1.0.4\lib\portable-net45+win8\MediaBrowser.Naming.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SQLitePCL.pretty, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\SQLitePCL.pretty.1.1.0\lib\portable-net45+netcore45+wpa81+wp8\SQLitePCL.pretty.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="SQLitePCLRaw.core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1488e028ca7ab535, processorArchitecture=MSIL">
+      <HintPath>..\packages\SQLitePCLRaw.core.1.1.1\lib\portable-net45+netcore45+wpa81+MonoAndroid10+MonoTouch10+Xamarin.iOS10\SQLitePCLRaw.core.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="UniversalDetector, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -390,6 +423,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Localization\Ratings\us.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\Ratings\uk.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

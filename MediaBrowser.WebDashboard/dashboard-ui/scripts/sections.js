@@ -1,4 +1,4 @@
-﻿define(['libraryBrowser', 'cardBuilder', 'appSettings', 'components/groupedcards', 'dom', 'apphost', 'scrollStyles', 'emby-button', 'paper-icon-button-light', 'emby-itemscontainer'], function (libraryBrowser, cardBuilder, appSettings, groupedcards, dom, appHost) {
+﻿define(['libraryBrowser', 'cardBuilder', 'appSettings', 'components/groupedcards', 'dom', 'apphost', 'imageLoader', 'scrollStyles', 'emby-button', 'paper-icon-button-light', 'emby-itemscontainer'], function (libraryBrowser, cardBuilder, appSettings, groupedcards, dom, appHost, imageLoader) {
     'use strict';
 
     function getUserViews(userId) {
@@ -207,7 +207,7 @@
         html += '<h1>Try Emby Theater<button is="paper-icon-button-light" style="margin-left:1em;" onclick="this.parentNode.parentNode.remove();" class="autoSize"><i class="md-icon">close</i></button></h1>';
 
         var nameText = AppInfo.isNativeApp ? 'Emby Theater' : '<a href="https://emby.media/download" target="_blank">Emby Theater</a>';
-        html += '<p>A beautiful app for your TV and large screen tablet. ' + nameText + ' runs on Windows, Xbox One, Google Chrome, FireFox, Microsoft Edge and Opera.</p>';
+        html += '<p>A beautiful app for your TV and large screen tablet. ' + nameText + ' runs on Windows, Xbox One, Raspberry Pi, Samsung Smart TVs, Sony PS4, Web Browsers, and more.</p>';
         html += '<div class="itemsContainer vertical-wrap">';
         html += getCard('https://raw.githubusercontent.com/MediaBrowser/Emby.Resources/master/apps/theater1.png', 'https://emby.media/download');
         html += getCard('https://raw.githubusercontent.com/MediaBrowser/Emby.Resources/master/apps/theater2.png', 'https://emby.media/download');
@@ -295,7 +295,7 @@
                     getThumbShape();
 
                 var supportsImageAnalysis = appHost.supports('imageanalysis');
-                var cardLayout = supportsImageAnalysis && (viewType === 'music' || !viewType);
+                var cardLayout = supportsImageAnalysis && (viewType === 'music' || viewType === 'movies' || viewType === 'tvshows' || !viewType);
 
                 html += cardBuilder.getCardsHtml({
                     items: items,
@@ -309,15 +309,18 @@
                     overlayPlayButton: viewType !== 'photos',
                     allowBottomPadding: !enableScrollX() && !cardLayout,
                     cardLayout: cardLayout,
-                    showTitle: viewType === 'music' || !viewType,
-                    showParentTitle: viewType === 'music' || !viewType,
-                    vibrant: supportsImageAnalysis && cardLayout
+                    showTitle: viewType === 'music' || !viewType || (cardLayout && (viewType === 'movies' || viewType === 'tvshows')),
+                    showYear: cardLayout && viewType === 'movies',
+                    showSeriesYear: cardLayout && viewType === 'tvshows',
+                    showParentTitle: viewType === 'music' || !viewType || (cardLayout && (viewType === 'tvshows')),
+                    vibrant: supportsImageAnalysis && cardLayout,
+                    lines: 2
                 });
                 html += '</div>';
             }
 
             elem.innerHTML = html;
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 
@@ -389,30 +392,25 @@
             }
 
             elem.innerHTML = html;
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 
-    function loadLibraryTiles(elem, user, shape, index, autoHideOnMobile) {
+    function loadLibraryTiles(elem, user, shape) {
 
         return getUserViews(user.Id).then(function (items) {
 
             var html = '';
 
-            if (autoHideOnMobile) {
-                html += '<div class="hiddenSectionOnMobile">';
-            } else {
-                html += '<div>';
-            }
+            html += '<div>';
 
             if (items.length) {
 
                 html += '<div>';
                 html += '<h1 class="listHeader">' + Globalize.translate('HeaderMyMedia') + '</h1>';
-
                 html += '</div>';
 
-                var scrollX = enableScrollX() && dom.getWindowSize().innerWidth >= 600;
+                var scrollX = enableScrollX() && dom.getWindowSize().innerWidth >= 500;
 
                 if (scrollX) {
                     html += '<div is="emby-itemscontainer" class="hiddenScrollX itemsContainer">';
@@ -422,7 +420,7 @@
 
                 html += cardBuilder.getCardsHtml({
                     items: items,
-                    shape: scrollX ? 'overflowBackdrop' : shape,
+                    shape: scrollX ? 'overflowSmallBackdrop' : shape,
                     showTitle: true,
                     centerText: true,
                     overlayText: false,
@@ -435,16 +433,10 @@
 
             html += '</div>';
 
-            if (autoHideOnMobile) {
-                html += '<div class="hiddenSectionOnNonMobile" style="margin-top:1em;">';
-                html += getLibraryButtonsHtml(items);
-                html += '</div>';
-            }
-
             return getAppInfo().then(function (infoHtml) {
 
                 elem.innerHTML = html + infoHtml;
-                ImageLoader.lazyChildren(elem);
+                imageLoader.lazyChildren(elem);
             });
         });
     }
@@ -469,7 +461,6 @@
 
             SortBy: "DatePlayed",
             SortOrder: "Descending",
-            MediaTypes: "Video",
             Filters: "IsResumable",
             Limit: limit,
             Recursive: true,
@@ -494,7 +485,7 @@
                 }
 
                 var supportsImageAnalysis = appHost.supports('imageanalysis');
-                var cardLayout = appHost.preferVisualCards;
+                var cardLayout = supportsImageAnalysis;
 
                 html += cardBuilder.getCardsHtml({
                     items: result.Items,
@@ -519,7 +510,7 @@
 
             elem.innerHTML = html;
 
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 
@@ -568,7 +559,7 @@
 
             elem.innerHTML = html;
 
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 
@@ -646,7 +637,7 @@
 
             var elem = page.querySelector('#channel' + channel.Id + '');
             elem.innerHTML = html;
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 
@@ -658,7 +649,8 @@
             limit: 5,
             Fields: "PrimaryImageAspectRatio,BasicSyncInfo",
             IsInProgress: false,
-            EnableTotalRecordCount: false
+            EnableTotalRecordCount: false,
+            IsLibraryItem: false
 
         }).then(function (result) {
 
@@ -700,7 +692,7 @@
             html += '</div>';
 
             elem.innerHTML = html;
-            ImageLoader.lazyChildren(elem);
+            imageLoader.lazyChildren(elem);
         });
     }
 

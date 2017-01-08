@@ -362,6 +362,22 @@ namespace SocketHttpListener.Net
             return false;
         }
 
+        public void DetermineIfChunked()
+        {
+            if (chunked)
+            {
+                return ;
+            }
+
+            Version v = context.Request.ProtocolVersion;
+            if (!cl_set && !chunked && v >= HttpVersion.Version11)
+                chunked = true;
+            if (!chunked && string.Equals(headers["Transfer-Encoding"], "chunked"))
+            {
+                chunked = true;
+            }
+        }
+
         internal void SendHeaders(bool closing, MemoryStream ms)
         {
             Encoding encoding = content_encoding;
@@ -370,7 +386,7 @@ namespace SocketHttpListener.Net
 
             if (content_type != null)
             {
-                if (content_encoding != null && content_type.IndexOf("charset=", StringComparison.Ordinal) == -1)
+                if (content_encoding != null && content_type.IndexOf("charset=", StringComparison.OrdinalIgnoreCase) == -1)
                 {
                     string enc_name = content_encoding.WebName;
                     headers.SetInternal("Content-Type", content_type + "; charset=" + enc_name);
@@ -413,9 +429,10 @@ namespace SocketHttpListener.Net
              *	HttpStatusCode.InternalServerError 	500
              *	HttpStatusCode.ServiceUnavailable 	503
              */
-            bool conn_close = (status_code == 408 || status_code == 411 ||
+            bool conn_close = status_code == 400 || status_code == 408 || status_code == 411 ||
                     status_code == 413 || status_code == 414 ||
-                    status_code == 503);
+                    status_code == 500 ||
+                    status_code == 503;
 
             if (conn_close == false)
                 conn_close = !context.Request.KeepAlive;

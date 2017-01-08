@@ -59,12 +59,13 @@ namespace Emby.Server.Implementations.HttpServer
         private readonly IEnvironmentInfo _environment;
         private readonly IStreamFactory _streamFactory;
         private readonly Func<Type, Func<string, object>> _funcParseFn;
+        private readonly bool _enableDualModeSockets;
 
         public HttpListenerHost(IServerApplicationHost applicationHost,
             ILogger logger,
             IServerConfigurationManager config,
             string serviceName,
-            string defaultRedirectPath, INetworkManager networkManager, IMemoryStreamFactory memoryStreamProvider, ITextEncoding textEncoding, ISocketFactory socketFactory, ICryptoProvider cryptoProvider, IJsonSerializer jsonSerializer, IXmlSerializer xmlSerializer, IEnvironmentInfo environment, ICertificate certificate, IStreamFactory streamFactory, Func<Type, Func<string, object>> funcParseFn)
+            string defaultRedirectPath, INetworkManager networkManager, IMemoryStreamFactory memoryStreamProvider, ITextEncoding textEncoding, ISocketFactory socketFactory, ICryptoProvider cryptoProvider, IJsonSerializer jsonSerializer, IXmlSerializer xmlSerializer, IEnvironmentInfo environment, ICertificate certificate, IStreamFactory streamFactory, Func<Type, Func<string, object>> funcParseFn, bool enableDualModeSockets)
             : base(serviceName)
         {
             _appHost = applicationHost;
@@ -80,6 +81,7 @@ namespace Emby.Server.Implementations.HttpServer
             _certificate = certificate;
             _streamFactory = streamFactory;
             _funcParseFn = funcParseFn;
+            _enableDualModeSockets = enableDualModeSockets;
             _config = config;
 
             _logger = logger;
@@ -89,16 +91,12 @@ namespace Emby.Server.Implementations.HttpServer
 
         readonly Dictionary<Type, int> _mapExceptionToStatusCode = new Dictionary<Type, int>
             {
-                {typeof (InvalidOperationException), 500},
-                {typeof (NotImplementedException), 500},
                 {typeof (ResourceNotFoundException), 404},
                 {typeof (FileNotFoundException), 404},
                 //{typeof (DirectoryNotFoundException), 404},
                 {typeof (SecurityException), 401},
                 {typeof (PaymentRequiredException), 402},
-                {typeof (UnauthorizedAccessException), 500},
-                {typeof (PlatformNotSupportedException), 500},
-                {typeof (NotSupportedException), 500}
+                {typeof (ArgumentException), 400}
             };
 
         public override void Configure()
@@ -179,8 +177,6 @@ namespace Emby.Server.Implementations.HttpServer
 
         private IHttpListener GetListener()
         {
-            var enableDualMode = _environment.OperatingSystem == OperatingSystem.Windows;
-
             return new WebSocketSharpListener(_logger,
                 _certificate,
                 _memoryStreamProvider,
@@ -189,7 +185,7 @@ namespace Emby.Server.Implementations.HttpServer
                 _socketFactory,
                 _cryptoProvider,
                 _streamFactory,
-                enableDualMode,
+                _enableDualModeSockets,
                 GetRequest);
         }
 
@@ -228,11 +224,30 @@ namespace Emby.Server.Implementations.HttpServer
             }
         }
 
-        private void ErrorHandler(Exception ex, IRequest httpReq)
+        private int GetStatusCode(Exception ex)
+        {
+            if (ex is ArgumentException)
+            {
+                return 400;
+            }
+
+            int statusCode;
+            if (!_mapExceptionToStatusCode.TryGetValue(ex.GetType(), out statusCode))
+            {
+                statusCode = 500;
+            }
+
+            return statusCode;
+        }
+
+        private void ErrorHandler(Exception ex, IRequest httpReq, bool logException = true)
         {
             try
             {
-                _logger.ErrorException("Error processing request", ex);
+                if (logException)
+                {
+                    _logger.ErrorException("Error processing request", ex);
+                }
 
                 var httpRes = httpReq.Response;
 
@@ -241,11 +256,7 @@ namespace Emby.Server.Implementations.HttpServer
                     return;
                 }
 
-                int statusCode;
-                if (!_mapExceptionToStatusCode.TryGetValue(ex.GetType(), out statusCode))
-                {
-                    statusCode = 500;
-                }
+                var statusCode = GetStatusCode(ex);
                 httpRes.StatusCode = statusCode;
 
                 httpRes.ContentType = "text/html";
@@ -264,7 +275,9 @@ namespace Emby.Server.Implementations.HttpServer
         {
             if (_listener != null)
             {
+                _logger.Info("Stopping HttpListener...");
                 _listener.Stop();
+                _logger.Info("HttpListener stopped");
             }
         }
 
@@ -414,9 +427,9 @@ namespace Emby.Server.Implementations.HttpServer
                     httpRes.StatusCode = 200;
                     httpRes.AddHeader("Access-Control-Allow-Origin", "*");
                     httpRes.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-                    httpRes.AddHeader("Access-Control-Allow-Headers",
-                        "Content-Type, Authorization, Range, X-MediaBrowser-Token, X-Emby-Authorization");
-                    httpRes.ContentType = "text/html";
+                    httpRes.AddHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Range, X-MediaBrowser-Token, X-Emby-Authorization");
+                    httpRes.ContentType = "text/plain";
+                    Write(httpRes, string.Empty);
                     return;
                 }
 
@@ -518,7 +531,7 @@ namespace Emby.Server.Implementations.HttpServer
                     return;
                 }
 
-                var handler = HttpHandlerFactory.GetHandler(httpReq);
+                var handler = HttpHandlerFactory.GetHandler(httpReq, _logger);
 
                 if (handler != null)
                 {
@@ -528,6 +541,10 @@ namespace Emby.Server.Implementations.HttpServer
                 {
                     ErrorHandler(new FileNotFoundException(), httpReq);
                 }
+            }
+            catch (OperationCanceledException ex)
+            {
+                ErrorHandler(ex, httpReq, false);
             }
             catch (Exception ex)
             {
@@ -698,19 +715,19 @@ namespace Emby.Server.Implementations.HttpServer
         protected virtual void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             base.Dispose();
 
             lock (_disposeLock)
             {
                 if (_disposed) return;
 
+                _disposed = true;
+
                 if (disposing)
                 {
                     Stop();
                 }
-
-                //release unmanaged resources here...
-                _disposed = true;
             }
         }
 

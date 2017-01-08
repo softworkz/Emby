@@ -1,4 +1,4 @@
-﻿define(['libraryBrowser', 'components/categorysyncbuttons', 'cardBuilder', 'dom', 'apphost', 'scrollStyles', 'emby-itemscontainer', 'emby-tabs', 'emby-button'], function (libraryBrowser, categorysyncbuttons, cardBuilder, dom, appHost) {
+﻿define(['libraryBrowser', 'components/categorysyncbuttons', 'cardBuilder', 'dom', 'apphost', 'imageLoader', 'playbackManager', 'scrollStyles', 'emby-itemscontainer', 'emby-tabs', 'emby-button'], function (libraryBrowser, categorysyncbuttons, cardBuilder, dom, appHost, imageLoader, playbackManager) {
     'use strict';
 
     function enableScrollX() {
@@ -170,7 +170,7 @@
 
             var recs = page.querySelector('.recommendations');
             recs.innerHTML = html;
-            ImageLoader.lazyChildren(recs);
+            imageLoader.lazyChildren(recs);
         });
     }
 
@@ -332,11 +332,11 @@
         }
 
         view.addEventListener('viewshow', function (e) {
-            Events.on(MediaController, 'playbackstop', onPlaybackStop);
+            Events.on(playbackManager, 'playbackstop', onPlaybackStop);
         });
 
         view.addEventListener('viewbeforehide', function (e) {
-            Events.off(MediaController, 'playbackstop', onPlaybackStop);
+            Events.off(playbackManager, 'playbackstop', onPlaybackStop);
         });
 
         require(["headroom-window"], function (headroom) {

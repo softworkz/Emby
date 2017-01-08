@@ -203,9 +203,6 @@ namespace MediaBrowser.Controller.Entities
                 case SpecialFolder.MusicGenres:
                     return GetMusicGenres(queryParent, user, query);
 
-                case SpecialFolder.MusicGenre:
-                    return await GetMusicGenreItems(queryParent, displayParent, user, query).ConfigureAwait(false);
-
                 case SpecialFolder.MusicLatest:
                     return GetMusicLatest(queryParent, user, query);
 
@@ -304,18 +301,6 @@ namespace MediaBrowser.Controller.Entities
                 TotalRecordCount = result.TotalRecordCount,
                 Items = result.Items.Select(i => i.Item1).ToArray()
             };
-        }
-
-        private async Task<QueryResult<BaseItem>> GetMusicGenreItems(Folder queryParent, Folder displayParent, User user, InternalItemsQuery query)
-        {
-            query.Recursive = true;
-            query.ParentId = queryParent.Id;
-            query.Genres = new[] { displayParent.Name };
-            query.SetUser(user);
-
-            query.IncludeItemTypes = new[] { typeof(MusicAlbum).Name };
-
-            return _libraryManager.GetItemsResult(query);
         }
 
         private QueryResult<BaseItem> GetMusicAlbumArtists(Folder parent, User user, InternalItemsQuery query)
@@ -1020,11 +1005,6 @@ namespace MediaBrowser.Controller.Entities
                 return false;
             }
 
-            if (request.Studios.Length > 0)
-            {
-                return false;
-            }
-
             if (request.StudioIds.Length > 0)
             {
                 return false;
@@ -1530,12 +1510,6 @@ namespace MediaBrowser.Controller.Entities
             }
 
             // Apply studio filter
-            if (query.Studios.Length > 0 && !query.Studios.Any(v => item.Studios.Contains(v, StringComparer.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
-
-            // Apply studio filter
             if (query.StudioIds.Length > 0 && !query.StudioIds.Any(id =>
             {
                 var studioItem = libraryManager.GetItemById(id);
@@ -1748,14 +1722,14 @@ namespace MediaBrowser.Controller.Entities
             }
 
             // Artists
-            if (query.ArtistNames.Length > 0)
+            if (query.ArtistIds.Length > 0)
             {
                 var audio = item as IHasArtist;
 
-                if (!(audio != null && query.ArtistNames.Any(audio.HasAnyArtist)))
-                {
-                    return false;
-                }
+                //if (!(audio != null && query.ArtistNames.Any(audio.HasAnyArtist)))
+                //{
+                //    return false;
+                //}
             }
 
             // Albums
@@ -1812,7 +1786,7 @@ namespace MediaBrowser.Controller.Entities
                 .Where(i => user.IsFolderGrouped(i.Id) && UserView.IsEligibleForGrouping(i));
         }
 
-        private IEnumerable<Folder> GetMediaFolders(User user, IEnumerable<string> viewTypes)
+        private List<Folder> GetMediaFolders(User user, IEnumerable<string> viewTypes)
         {
             if (user == null)
             {
@@ -1822,7 +1796,7 @@ namespace MediaBrowser.Controller.Entities
                         var folder = i as ICollectionFolder;
 
                         return folder != null && viewTypes.Contains(folder.CollectionType ?? string.Empty, StringComparer.OrdinalIgnoreCase);
-                    });
+                    }).ToList();
             }
             return GetMediaFolders(user)
                 .Where(i =>
@@ -1830,17 +1804,17 @@ namespace MediaBrowser.Controller.Entities
                     var folder = i as ICollectionFolder;
 
                     return folder != null && viewTypes.Contains(folder.CollectionType ?? string.Empty, StringComparer.OrdinalIgnoreCase);
-                });
+                }).ToList();
         }
 
-        private IEnumerable<Folder> GetMediaFolders(Folder parent, User user, IEnumerable<string> viewTypes)
+        private List<Folder> GetMediaFolders(Folder parent, User user, IEnumerable<string> viewTypes)
         {
             if (parent == null || parent is UserView)
             {
                 return GetMediaFolders(user, viewTypes);
             }
 
-            return new[] { parent };
+            return new List<Folder> { parent };
         }
 
         private IEnumerable<BaseItem> GetRecursiveChildren(Folder parent, User user, IEnumerable<string> viewTypes)

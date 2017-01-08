@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Emby.Common.Implementations.Networking;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Net;
 
@@ -18,11 +19,6 @@ namespace Emby.Common.Implementations.Net
         // but that wasn't really the point so kept to YAGNI principal for now, even if the 
         // interfaces are a bit ugly, specific and make assumptions.
 
-        /// <summary>
-        /// Used by RSSDP components to create implementations of the <see cref="IUdpSocket"/> interface, to perform platform agnostic socket communications.
-        /// </summary>
-        private IPAddress _LocalIP;
-
         private readonly ILogger _logger;
 
         public SocketFactory(ILogger logger)
@@ -33,23 +29,29 @@ namespace Emby.Common.Implementations.Net
             }
 
             _logger = logger;
-            _LocalIP = IPAddress.Any;
         }
 
         public ISocket CreateSocket(IpAddressFamily family, MediaBrowser.Model.Net.SocketType socketType, MediaBrowser.Model.Net.ProtocolType protocolType, bool dualMode)
         {
-            var addressFamily = family == IpAddressFamily.InterNetwork
-                ? AddressFamily.InterNetwork
-                : AddressFamily.InterNetworkV6;
-
-            var socket = new Socket(addressFamily, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
-
-            if (dualMode)
+            try
             {
-                socket.DualMode = true;
-            }
+                var addressFamily = family == IpAddressFamily.InterNetwork
+                    ? AddressFamily.InterNetwork
+                    : AddressFamily.InterNetworkV6;
 
-            return new NetSocket(socket, _logger);
+                var socket = new Socket(addressFamily, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
+
+                if (dualMode)
+                {
+                    socket.DualMode = true;
+                }
+
+                return new NetSocket(socket, _logger, dualMode);
+            }
+            catch (SocketException ex)
+            {
+                throw new SocketCreateException(ex.SocketErrorCode.ToString(), ex);
+            }
         }
 
         #region ISocketFactory Members
@@ -66,7 +68,7 @@ namespace Emby.Common.Implementations.Net
             try
             {
                 retVal.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                return new UdpSocket(retVal, localPort, _LocalIP);
+                return new UdpSocket(retVal, localPort, IPAddress.Any);
             }
             catch
             {
@@ -80,9 +82,8 @@ namespace Emby.Common.Implementations.Net
         /// <summary>
         /// Creates a new UDP socket that is a member of the SSDP multicast local admin group and binds it to the specified local port.
         /// </summary>
-        /// <param name="localPort">An integer specifying the local port to bind the socket to.</param>
         /// <returns>An implementation of the <see cref="IUdpSocket"/> interface used by RSSDP components to perform socket operations.</returns>
-        public IUdpSocket CreateSsdpUdpSocket(int localPort)
+        public IUdpSocket CreateSsdpUdpSocket(IpAddressInfo localIpAddress, int localPort)
         {
             if (localPort < 0) throw new ArgumentException("localPort cannot be less than zero.", "localPort");
 
@@ -91,8 +92,11 @@ namespace Emby.Common.Implementations.Net
             {
                 retVal.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 4);
-                retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse("239.255.255.250"), _LocalIP));
-                return new UdpSocket(retVal, localPort, _LocalIP);
+
+                var localIp = NetworkManager.ToIPAddress(localIpAddress);
+
+                retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse("239.255.255.250"), localIp));
+                return new UdpSocket(retVal, localPort, localIp);
             }
             catch
             {
@@ -121,23 +125,26 @@ namespace Emby.Common.Implementations.Net
 
             try
             {
-#if NETSTANDARD1_3
-				// The ExclusiveAddressUse socket option is a Windows-specific option that, when set to "true," tells Windows not to allow another socket to use the same local address as this socket
-				// See https://github.com/dotnet/corefx/pull/11509 for more details
-				if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+#if NET46
+				retVal.ExclusiveAddressUse = false;
+#else
+                // The ExclusiveAddressUse socket option is a Windows-specific option that, when set to "true," tells Windows not to allow another socket to use the same local address as this socket
+                // See https://github.com/dotnet/corefx/pull/11509 for more details
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
 				{
 					retVal.ExclusiveAddressUse = false;
 				}
-#else
-                retVal.ExclusiveAddressUse = false;
 #endif
                 //retVal.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
                 retVal.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, multicastTimeToLive);
-                retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse(ipAddress), _LocalIP));
+
+                var localIp = IPAddress.Any;
+
+                retVal.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse(ipAddress), localIp));
                 retVal.MulticastLoopback = true;
 
-                return new UdpSocket(retVal, localPort, _LocalIP);
+                return new UdpSocket(retVal, localPort, localIp);
             }
             catch
             {

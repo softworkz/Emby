@@ -474,7 +474,19 @@ namespace MediaBrowser.MediaEncoding.Encoder
 
                         arg += string.Format(" -canvas_size {0}:{1}", state.VideoStream.Width.Value.ToString(CultureInfo.InvariantCulture), Convert.ToInt32(height).ToString(CultureInfo.InvariantCulture));
                     }
-                    arg += " -i \"" + state.SubtitleStream.Path + "\"";
+
+                    var subtitlePath = state.SubtitleStream.Path;
+
+                    if (string.Equals(Path.GetExtension(subtitlePath), ".sub", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var idxFile = Path.ChangeExtension(subtitlePath, ".idx");
+                        if (FileSystem.FileExists(idxFile))
+                        {
+                            subtitlePath = idxFile;
+                        }
+                    }
+
+                    arg += " -i \"" + subtitlePath + "\"";
                 }
             }
 
@@ -815,6 +827,14 @@ namespace MediaBrowser.MediaEncoding.Encoder
                     return string.Format(" -b:v {0}", bitrate.Value.ToString(UsCulture));
                 }
 
+                if (string.Equals(videoCodec, "libx264", StringComparison.OrdinalIgnoreCase))
+                {
+                    // h264
+                    return string.Format(" -maxrate {0} -bufsize {1}",
+                        bitrate.Value.ToString(UsCulture),
+                        (bitrate.Value * 2).ToString(UsCulture));
+                }
+
                 // h264
                 return string.Format(" -b:v {0} -maxrate {0} -bufsize {1}",
                     bitrate.Value.ToString(UsCulture),
@@ -884,7 +904,8 @@ namespace MediaBrowser.MediaEncoding.Encoder
             }
             else
             {
-                args += "-map -0:v";
+                // No known video stream
+                args += "-vn";
             }
 
             if (state.AudioStream != null)

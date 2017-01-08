@@ -700,14 +700,14 @@
             showElement('#fldCustomRating', context);
         }
 
+        showElement('#tagsCollapsible', context);
+
         if (item.Type === "TvChannel") {
-            hideElement('#tagsCollapsible', context);
             hideElement('#metadataSettingsCollapsible', context);
             hideElement('#fldPremiereDate', context);
             hideElement('#fldDateAdded', context);
             hideElement('#fldYear', context);
         } else {
-            showElement('#tagsCollapsible', context);
             showElement('#metadataSettingsCollapsible', context);
             showElement('#fldPremiereDate', context);
             showElement('#fldDateAdded', context);
@@ -765,11 +765,11 @@
             showElement('#fldParentIndexNumber');
 
             if (item.Type === "Episode") {
-                context.querySelector('#txtParentIndexNumber').label(globalize.translate('LabelSeasonNumber'));
+                context.querySelector('#txtParentIndexNumber').label(globalize.translate('sharedcomponents#LabelSeasonNumber'));
             } else if (item.Type === "Audio") {
-                context.querySelector('#txtParentIndexNumber').label(globalize.translate('LabelDiscNumber'));
+                context.querySelector('#txtParentIndexNumber').label(globalize.translate('sharedcomponents#LabelDiscNumber'));
             } else {
-                context.querySelector('#txtParentIndexNumber').label(globalize.translate('LabelParentNumber'));
+                context.querySelector('#txtParentIndexNumber').label(globalize.translate('sharedcomponents#LabelParentNumber'));
             }
         } else {
             hideElement('#fldParentIndexNumber', context);

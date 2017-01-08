@@ -87,6 +87,18 @@ namespace MediaBrowser.Providers.TV
 
             var seriesDataPath = TvdbSeriesProvider.GetSeriesDataPath(_config.ApplicationPaths, seriesProviderIds);
 
+            // Doesn't have required provider id's
+            if (string.IsNullOrWhiteSpace(seriesDataPath))
+            {
+                return;
+            }
+
+            // Check this in order to avoid logging an exception due to directory not existing
+            if (!_fileSystem.DirectoryExists(seriesDataPath))
+            {
+                return;
+            }
+
             var episodeFiles = _fileSystem.GetFilePaths(seriesDataPath)
                 .Where(i => string.Equals(Path.GetExtension(i), ".xml", StringComparison.OrdinalIgnoreCase))
                 .Select(Path.GetFileNameWithoutExtension)
@@ -120,10 +132,13 @@ namespace MediaBrowser.Providers.TV
 
             var hasBadData = HasInvalidContent(seriesList);
 
+            // Be conservative here to avoid creating missing episodes for ones they already have
+            var addMissingEpisodes = !hasBadData && seriesList.All(i => _libraryManager.GetLibraryOptions(i).ImportMissingEpisodes);
+
             var anySeasonsRemoved = await RemoveObsoleteOrMissingSeasons(seriesList, episodeLookup)
                 .ConfigureAwait(false);
 
-            var anyEpisodesRemoved = await RemoveObsoleteOrMissingEpisodes(seriesList, episodeLookup)
+            var anyEpisodesRemoved = await RemoveObsoleteOrMissingEpisodes(seriesList, episodeLookup, addMissingEpisodes)
                 .ConfigureAwait(false);
 
             var hasNewEpisodes = false;
@@ -134,7 +149,7 @@ namespace MediaBrowser.Providers.TV
 
                 if (seriesConfig == null || !seriesConfig.DisabledMetadataFetchers.Contains(TvdbSeriesProvider.Current.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    hasNewEpisodes = await AddMissingEpisodes(seriesList, hasBadData, seriesDataPath, episodeLookup, cancellationToken)
+                    hasNewEpisodes = await AddMissingEpisodes(seriesList, addMissingEpisodes, seriesDataPath, episodeLookup, cancellationToken)
                         .ConfigureAwait(false);
                 }
             }
@@ -180,13 +195,9 @@ namespace MediaBrowser.Providers.TV
         /// Adds the missing episodes.
         /// </summary>
         /// <param name="series">The series.</param>
-        /// <param name="seriesHasBadData">if set to <c>true</c> [series has bad data].</param>
-        /// <param name="seriesDataPath">The series data path.</param>
-        /// <param name="episodeLookup">The episode lookup.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>Task.</returns>
         private async Task<bool> AddMissingEpisodes(List<Series> series,
-            bool seriesHasBadData,
+            bool addMissingEpisodes,
             string seriesDataPath,
             IEnumerable<Tuple<int, int>> episodeLookup,
             CancellationToken cancellationToken)
@@ -233,15 +244,18 @@ namespace MediaBrowser.Providers.TV
                 {
                     continue;
                 }
+
                 var now = DateTime.UtcNow;
 
                 var targetSeries = DetermineAppropriateSeries(series, tuple.Item1);
                 var seasonOffset = TvdbSeriesProvider.GetSeriesOffset(targetSeries.ProviderIds) ?? ((targetSeries.AnimeSeriesIndex ?? 1) - 1);
 
+                var unairedThresholdDays = 2;
+                now = now.AddDays(0 - unairedThresholdDays);
+
                 if (airDate.Value < now)
                 {
-                    // Be conservative here to avoid creating missing episodes for ones they already have
-                    if (!seriesHasBadData)
+                    if (addMissingEpisodes)
                     {
                         // tvdb has a lot of nearly blank episodes
                         _logger.Info("Creating virtual missing episode {0} {1}x{2}", targetSeries.Name, tuple.Item1, tuple.Item2);
@@ -278,7 +292,8 @@ namespace MediaBrowser.Providers.TV
         /// Removes the virtual entry after a corresponding physical version has been added
         /// </summary>
         private async Task<bool> RemoveObsoleteOrMissingEpisodes(IEnumerable<Series> series,
-            IEnumerable<Tuple<int, int>> episodeLookup)
+            IEnumerable<Tuple<int, int>> episodeLookup,
+            bool allowMissingEpisodes)
         {
             var existingEpisodes = (from s in series
                                     let seasonOffset = TvdbSeriesProvider.GetSeriesOffset(s.ProviderIds) ?? ((s.AnimeSeriesIndex ?? 1) - 1)
@@ -312,6 +327,11 @@ namespace MediaBrowser.Providers.TV
 
                         // If the episode no longer exists in the remote lookup, delete it
                         if (!episodeLookup.Any(e => e.Item1 == seasonNumber && e.Item2 == episodeNumber))
+                        {
+                            return true;
+                        }
+
+                        if (!allowMissingEpisodes && i.Episode.IsMissingEpisode)
                         {
                             return true;
                         }
@@ -520,7 +540,7 @@ namespace MediaBrowser.Providers.TV
                         reader.Read();
 
                         // Loop through each element
-                        while (!reader.EOF)
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             if (reader.NodeType == XmlNodeType.Element)
                             {

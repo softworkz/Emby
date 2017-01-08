@@ -510,25 +510,19 @@ namespace MediaBrowser.Providers.Manager
                 Type = MetadataPluginType.LocalMetadataProvider
             }));
 
-            if (item.IsInternetMetadataEnabled())
+            // Fetchers
+            list.AddRange(providers.Where(i => (i is IRemoteMetadataProvider)).Select(i => new MetadataPlugin
             {
-                // Fetchers
-                list.AddRange(providers.Where(i => (i is IRemoteMetadataProvider)).Select(i => new MetadataPlugin
-                {
-                    Name = i.Name,
-                    Type = MetadataPluginType.MetadataFetcher
-                }));
-            }
+                Name = i.Name,
+                Type = MetadataPluginType.MetadataFetcher
+            }));
 
-            if (item.IsSaveLocalMetadataEnabled())
+            // Savers
+            list.AddRange(_savers.Where(i => IsSaverEnabledForItem(i, item, ItemUpdateType.MetadataEdit, true)).OrderBy(i => i.Name).Select(i => new MetadataPlugin
             {
-                // Savers
-                list.AddRange(_savers.Where(i => IsSaverEnabledForItem(i, item, ItemUpdateType.MetadataEdit, true)).OrderBy(i => i.Name).Select(i => new MetadataPlugin
-                {
-                    Name = i.Name,
-                    Type = MetadataPluginType.MetadataSaver
-                }));
-            }
+                Name = i.Name,
+                Type = MetadataPluginType.MetadataSaver
+            }));
         }
 
         private void AddImagePlugins<T>(List<MetadataPlugin> list, T item, List<IImageProvider> imageProviders)
@@ -927,19 +921,19 @@ namespace MediaBrowser.Providers.Manager
         {
             await item.RefreshMetadata(options, CancellationToken.None).ConfigureAwait(false);
 
-            if (item.IsFolder)
+            // Collection folders don't validate their children so we'll have to simulate that here
+            var collectionFolder = item as CollectionFolder;
+
+            if (collectionFolder != null)
             {
-                // Collection folders don't validate their children so we'll have to simulate that here
-                var collectionFolder = item as CollectionFolder;
+                await RefreshCollectionFolderChildren(options, collectionFolder).ConfigureAwait(false);
+            }
+            else
+            {
+                var folder = item as Folder;
 
-                if (collectionFolder != null)
+                if (folder != null)
                 {
-                    await RefreshCollectionFolderChildren(options, collectionFolder).ConfigureAwait(false);
-                }
-                else
-                {
-                    var folder = (Folder)item;
-
                     await folder.ValidateChildren(new Progress<double>(), cancellationToken, options).ConfigureAwait(false);
                 }
             }

@@ -14,7 +14,7 @@ namespace SocketHttpListener.Net
     // Update: we send a single packet for the first non-chunked Write
     // What happens when we set content-length to X and write X-1 bytes then close?
     // what if we don't set content-length at all?
-    class ResponseStream : Stream
+    public class ResponseStream : Stream
     {
         HttpListenerResponse response;
         bool disposed;
@@ -136,6 +136,11 @@ namespace SocketHttpListener.Net
             if (disposed)
                 throw new ObjectDisposedException(GetType().ToString());
 
+            if (count == 0)
+            {
+                //return;
+            }
+
             byte[] bytes = null;
             MemoryStream ms = GetHeaders(response, _memoryStreamFactory, false);
             bool chunked = response.SendChunked;
@@ -176,6 +181,11 @@ namespace SocketHttpListener.Net
             if (disposed)
                 throw new ObjectDisposedException(GetType().ToString());
 
+            if (count == 0)
+            {
+                //return;
+            }
+
             byte[] bytes = null;
             MemoryStream ms = GetHeaders(response, _memoryStreamFactory, false);
             bool chunked = response.SendChunked;
@@ -206,7 +216,7 @@ namespace SocketHttpListener.Net
                 await stream.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
             }
 
-            if (response.SendChunked)
+            if (chunked)
                 stream.Write(crlf, 0, 2);
         }
 

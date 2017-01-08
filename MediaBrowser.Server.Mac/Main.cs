@@ -20,6 +20,7 @@ using MonoMac.AppKit;
 using MonoMac.Foundation;
 using MonoMac.ObjCRuntime;
 using Emby.Server.Core;
+using Emby.Server.Implementations;
 using Emby.Common.Implementations.Logging;
 using Emby.Common.Implementations.EnvironmentInfo;
 using Emby.Server.Mac.Native;
@@ -39,9 +40,11 @@ namespace MediaBrowser.Server.Mac
 
 		static void Main (string[] args)
 		{
-			var applicationPath = Assembly.GetEntryAssembly().Location;
+            SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
 
-			var options = new StartupOptions();
+            var applicationPath = Assembly.GetEntryAssembly().Location;
+
+			var options = new StartupOptions(Environment.GetCommandLineArgs());
 
 			// Allow this to be specified on the command line.
 			var customProgramDataPath = options.GetOption("-programdata");
@@ -139,7 +142,10 @@ namespace MediaBrowser.Server.Mac
 
         private static EnvironmentInfo GetEnvironmentInfo()
         {
-            var info = new EnvironmentInfo();
+            var info = new EnvironmentInfo()
+            {
+                CustomOperatingSystem = MediaBrowser.Model.System.OperatingSystem.OSX
+            };
 
             var uname = GetUnixName();
 

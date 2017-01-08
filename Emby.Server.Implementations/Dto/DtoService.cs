@@ -459,12 +459,21 @@ namespace Emby.Server.Implementations.Dto
 
                 if (dtoOptions.EnableUserData)
                 {
-                    dto.UserData = await _userDataRepository.GetUserDataDto(item, dto, user).ConfigureAwait(false);
+                    dto.UserData = await _userDataRepository.GetUserDataDto(item, dto, user, dtoOptions.Fields).ConfigureAwait(false);
                 }
 
                 if (!dto.ChildCount.HasValue && item.SourceType == SourceType.Library)
                 {
-                    dto.ChildCount = GetChildCount(folder, user);
+                    // For these types we can try to optimize and assume these values will be equal
+                    if (item is MusicAlbum || item is Season)
+                    {
+                        dto.ChildCount = dto.RecursiveItemCount;
+                    }
+
+                    if (dtoOptions.Fields.Contains(ItemFields.ChildCount))
+                    {
+                        dto.ChildCount = dto.ChildCount ?? GetChildCount(folder, user);
+                    }
                 }
 
                 if (fields.Contains(ItemFields.CumulativeRunTimeTicks))
@@ -482,7 +491,7 @@ namespace Emby.Server.Implementations.Dto
             {
                 if (dtoOptions.EnableUserData)
                 {
-                    dto.UserData = _userDataRepository.GetUserDataDto(item, user).Result;
+                    dto.UserData = await _userDataRepository.GetUserDataDto(item, user).ConfigureAwait(false);
                 }
             }
 
@@ -1151,28 +1160,29 @@ namespace Emby.Server.Implementations.Dto
             {
                 dto.Artists = hasArtist.Artists;
 
-                var artistItems = _libraryManager.GetArtists(new InternalItemsQuery
-                {
-                    EnableTotalRecordCount = false,
-                    ItemIds = new[] { item.Id.ToString("N") }
-                });
+                //var artistItems = _libraryManager.GetArtists(new InternalItemsQuery
+                //{
+                //    EnableTotalRecordCount = false,
+                //    ItemIds = new[] { item.Id.ToString("N") }
+                //});
 
-                dto.ArtistItems = artistItems.Items
-                    .Select(i =>
-                    {
-                        var artist = i.Item1;
-                        return new NameIdPair
-                        {
-                            Name = artist.Name,
-                            Id = artist.Id.ToString("N")
-                        };
-                    })
-                    .ToList();
+                //dto.ArtistItems = artistItems.Items
+                //    .Select(i =>
+                //    {
+                //        var artist = i.Item1;
+                //        return new NameIdPair
+                //        {
+                //            Name = artist.Name,
+                //            Id = artist.Id.ToString("N")
+                //        };
+                //    })
+                //    .ToList();
 
                 // Include artists that are not in the database yet, e.g., just added via metadata editor
-                var foundArtists = artistItems.Items.Select(i => i.Item1.Name).ToList();
+                //var foundArtists = artistItems.Items.Select(i => i.Item1.Name).ToList();
+                dto.ArtistItems = new List<NameIdPair>();
                 dto.ArtistItems.AddRange(hasArtist.Artists
-                    .Except(foundArtists, new DistinctNameComparer())
+                    //.Except(foundArtists, new DistinctNameComparer())
                     .Select(i =>
                     {
                         // This should not be necessary but we're seeing some cases of it
@@ -1201,23 +1211,48 @@ namespace Emby.Server.Implementations.Dto
             {
                 dto.AlbumArtist = hasAlbumArtist.AlbumArtists.FirstOrDefault();
 
-                var artistItems = _libraryManager.GetAlbumArtists(new InternalItemsQuery
-                {
-                    EnableTotalRecordCount = false,
-                    ItemIds = new[] { item.Id.ToString("N") }
-                });
+                //var artistItems = _libraryManager.GetAlbumArtists(new InternalItemsQuery
+                //{
+                //    EnableTotalRecordCount = false,
+                //    ItemIds = new[] { item.Id.ToString("N") }
+                //});
 
-                dto.AlbumArtists = artistItems.Items
+                //dto.AlbumArtists = artistItems.Items
+                //    .Select(i =>
+                //    {
+                //        var artist = i.Item1;
+                //        return new NameIdPair
+                //        {
+                //            Name = artist.Name,
+                //            Id = artist.Id.ToString("N")
+                //        };
+                //    })
+                //    .ToList();
+
+                dto.AlbumArtists = new List<NameIdPair>();
+                dto.AlbumArtists.AddRange(hasAlbumArtist.AlbumArtists
+                    //.Except(foundArtists, new DistinctNameComparer())
                     .Select(i =>
                     {
-                        var artist = i.Item1;
-                        return new NameIdPair
+                        // This should not be necessary but we're seeing some cases of it
+                        if (string.IsNullOrWhiteSpace(i))
                         {
-                            Name = artist.Name,
-                            Id = artist.Id.ToString("N")
-                        };
-                    })
-                    .ToList();
+                            return null;
+                        }
+
+                        var artist = _libraryManager.GetArtist(i);
+                        if (artist != null)
+                        {
+                            return new NameIdPair
+                            {
+                                Name = artist.Name,
+                                Id = artist.Id.ToString("N")
+                            };
+                        }
+
+                        return null;
+
+                    }).Where(i => i != null));
             }
 
             // Add video info
@@ -1351,6 +1386,27 @@ namespace Emby.Server.Implementations.Dto
                     if (episodeSeries != null)
                     {
                         dto.SeriesStudio = episodeSeries.Studios.FirstOrDefault();
+                        if (!string.IsNullOrWhiteSpace(dto.SeriesStudio))
+                        {
+                            try
+                            {
+                                var studio = _libraryManager.GetStudio(dto.SeriesStudio);
+
+                                if (studio != null)
+                                {
+                                    dto.SeriesStudioInfo = new StudioDto
+                                    {
+                                        Name = dto.SeriesStudio,
+                                        Id = studio.Id.ToString("N"),
+                                        PrimaryImageTag = GetImageCacheTag(studio, ImageType.Primary)
+                                    };
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                
+                            }
+                        }
                     }
                 }
             }
@@ -1448,12 +1504,34 @@ namespace Emby.Server.Implementations.Dto
             }
         }
 
+        private BaseItem GetImageDisplayParent(BaseItem item)
+        {
+            var musicAlbum = item as MusicAlbum;
+            if (musicAlbum != null)
+            {
+                var artist = musicAlbum.MusicArtist;
+                if (artist != null)
+                {
+                    return artist;
+                }
+            }
+            return item.GetParent();
+        }
+
         private void AddInheritedImages(BaseItemDto dto, BaseItem item, DtoOptions options, BaseItem owner)
         {
+            if (!item.SupportsInheritedParentImages)
+            {
+                return;
+            }
+
             var logoLimit = options.GetImageLimit(ImageType.Logo);
             var artLimit = options.GetImageLimit(ImageType.Art);
             var thumbLimit = options.GetImageLimit(ImageType.Thumb);
             var backdropLimit = options.GetImageLimit(ImageType.Backdrop);
+
+            // For now. Emby apps are not using this
+            artLimit = 0;
 
             if (logoLimit == 0 && artLimit == 0 && thumbLimit == 0 && backdropLimit == 0)
             {
@@ -1464,7 +1542,7 @@ namespace Emby.Server.Implementations.Dto
             var isFirst = true;
 
             while (((!dto.HasLogo && logoLimit > 0) || (!dto.HasArtImage && artLimit > 0) || (!dto.HasThumb && thumbLimit > 0) || parent is Series) &&
-                (parent = parent ?? (isFirst ? item.GetParent() ?? owner : parent)) != null)
+                (parent = parent ?? (isFirst ? GetImageDisplayParent(item) ?? owner : parent)) != null)
             {
                 if (parent == null)
                 {
@@ -1515,7 +1593,13 @@ namespace Emby.Server.Implementations.Dto
                 }
 
                 isFirst = false;
-                parent = parent.GetParent();
+
+                if (!parent.SupportsInheritedParentImages)
+                {
+                    break;
+                }
+
+                parent = GetImageDisplayParent(parent);
             }
         }
 

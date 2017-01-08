@@ -100,13 +100,16 @@
 }
 
 .listItemIcon {
-    width: auto !important;
-    height: auto !important;
+    width: 1em !important;
+    height: 1em !important;
     font-size: 143%;
     border-radius: 500px;
-    background-color: #52B54B;
     padding: .5em;
     color: #fff;
+}
+
+.listItemIcon:not(.listItemIcon-transparent) {
+    background-color: #52B54B;
 }
 
 .listItemProgressBar {
@@ -166,12 +169,9 @@
     align-items: center;
 }
 
-@supports (display: flex) {
-
-    .listItem, .listItemBody, .listItemMediaInfo {
-        display: flex;
-        contain: layout style;
-    }
+.listItem, .listItemBody, .listItemMediaInfo {
+    display: flex;
+    contain: layout style;
 }
 
 @media all and (max-width: 800px) {

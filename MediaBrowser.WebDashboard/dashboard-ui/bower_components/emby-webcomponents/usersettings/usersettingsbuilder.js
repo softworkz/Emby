@@ -40,6 +40,14 @@ define(['appSettings', 'events', 'browser'], function (appsettings, events, brow
             saveTimeout = setTimeout(onSaveTimeout, 50);
         }
 
+        self.getData = function () {
+            return displayPrefs;
+        };
+
+        self.importFrom = function (instance) {
+            displayPrefs = instance.getData();
+        };
+
         self.set = function (name, value, enableOnServer) {
 
             var userId = currentUserId;
@@ -98,11 +106,7 @@ define(['appSettings', 'events', 'browser'], function (appsettings, events, brow
 
             val = self.get('enableThemeSongs', false);
 
-            if (val) {
-                return val !== 'false';
-            }
-
-            return true;
+            return val !== 'false';
         };
 
         self.enableThemeVideos = function (val) {

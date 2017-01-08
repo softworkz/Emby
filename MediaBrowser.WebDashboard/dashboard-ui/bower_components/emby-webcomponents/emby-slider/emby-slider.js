@@ -23,6 +23,13 @@
             if (backgroundLower) {
                 var fraction = (value - range.min) / (range.max - range.min);
 
+                if (browser.noFlex) {
+                    backgroundLower.style['-webkit-flex'] = fraction;
+                    backgroundUpper.style['-webkit-flex'] = 1 - fraction;
+                    backgroundLower.style['-webkit-box-flex'] = fraction;
+                    backgroundUpper.style['-webkit-box-flex'] = 1 - fraction;
+                }
+
                 backgroundLower.style.flex = fraction;
                 backgroundUpper.style.flex = 1 - fraction;
             }
@@ -35,20 +42,27 @@
 
         if (range.getBubbleText) {
             value = range.getBubbleText(value);
+        } else {
+            value = Math.round(value);
         }
+
         bubbleText.innerHTML = value;
     }
 
     EmbySliderPrototype.attachedCallback = function () {
 
-        if (this.getAttribute('data-embycheckbox') === 'true') {
+        if (this.getAttribute('data-embyslider') === 'true') {
             return;
         }
 
-        this.setAttribute('data-embycheckbox', 'true');
+        this.setAttribute('data-embyslider', 'true');
 
         this.classList.add('mdl-slider');
         this.classList.add('mdl-js-slider');
+
+        if (browser.noFlex) {
+            this.classList.add('slider-no-webkit-thumb');
+        }
 
         var containerElement = this.parentNode;
         containerElement.classList.add('mdl-slider__container');
@@ -103,7 +117,7 @@
                     var clientX = e.clientX;
                     var bubbleValue = (clientX - rect.left) / rect.width;
                     bubbleValue *= 100;
-                    updateBubble(this, Math.round(bubbleValue), sliderBubble, sliderBubbleText);
+                    updateBubble(this, bubbleValue, sliderBubble, sliderBubbleText);
 
                     if (hasHideClass) {
                         sliderBubble.classList.remove('hide');

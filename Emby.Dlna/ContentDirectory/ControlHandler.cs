@@ -23,6 +23,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.Xml;
@@ -65,7 +66,7 @@ namespace Emby.Dlna.ContentDirectory
             _didlBuilder = new DidlBuilder(profile, user, imageProcessor, serverAddress, accessToken, userDataManager, localization, mediaSourceManager, Logger, libraryManager, mediaEncoder);
         }
 
-        protected override IEnumerable<KeyValuePair<string, string>> GetResult(string methodName, Headers methodParams)
+        protected override IEnumerable<KeyValuePair<string, string>> GetResult(string methodName, IDictionary<string, string> methodParams)
         {
             var deviceId = "test";
 
@@ -98,6 +99,9 @@ namespace Emby.Dlna.ContentDirectory
             if (string.Equals(methodName, "Search", StringComparison.OrdinalIgnoreCase))
                 return HandleSearch(methodParams, user, deviceId).Result;
 
+            if (string.Equals(methodName, "X_BrowseByLetter", StringComparison.OrdinalIgnoreCase))
+                return HandleX_BrowseByLetter(methodParams, user, deviceId).Result;
+
             throw new ResourceNotFoundException("Unexpected control request name: " + methodName);
         }
 
@@ -118,17 +122,20 @@ namespace Emby.Dlna.ContentDirectory
             _userDataManager.SaveUserData(user.Id, item, userdata, UserDataSaveReason.TogglePlayed,
                 CancellationToken.None);
 
-            return new Headers();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         private IEnumerable<KeyValuePair<string, string>> HandleGetSearchCapabilities()
         {
-            return new Headers(true) { { "SearchCaps", "res@resolution,res@size,res@duration,dc:title,dc:creator,upnp:actor,upnp:artist,upnp:genre,upnp:album,dc:date,upnp:class,@id,@refID,@protocolInfo,upnp:author,dc:description,pv:avKeywords" } };
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "SearchCaps", "res@resolution,res@size,res@duration,dc:title,dc:creator,upnp:actor,upnp:artist,upnp:genre,upnp:album,dc:date,upnp:class,@id,@refID,@protocolInfo,upnp:author,dc:description,pv:avKeywords" }
+            };
         }
 
         private IEnumerable<KeyValuePair<string, string>> HandleGetSortCapabilities()
         {
-            return new Headers(true)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "SortCaps", "res@duration,res@size,res@bitrate,dc:date,dc:title,dc:size,upnp:album,upnp:artist,upnp:albumArtist,upnp:episodeNumber,upnp:genre,upnp:originalTrackNumber,upnp:rating" }
             };
@@ -136,7 +143,7 @@ namespace Emby.Dlna.ContentDirectory
 
         private IEnumerable<KeyValuePair<string, string>> HandleGetSortExtensionCapabilities()
         {
-            return new Headers(true)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "SortExtensionCaps", "res@duration,res@size,res@bitrate,dc:date,dc:title,dc:size,upnp:album,upnp:artist,upnp:albumArtist,upnp:episodeNumber,upnp:genre,upnp:originalTrackNumber,upnp:rating" }
             };
@@ -144,14 +151,14 @@ namespace Emby.Dlna.ContentDirectory
 
         private IEnumerable<KeyValuePair<string, string>> HandleGetSystemUpdateID()
         {
-            var headers = new Headers(true);
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             headers.Add("Id", _systemUpdateId.ToString(_usCulture));
             return headers;
         }
 
         private IEnumerable<KeyValuePair<string, string>> HandleGetFeatureList()
         {
-            return new Headers(true)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "FeatureList", GetFeatureListXml() }
             };
@@ -159,7 +166,7 @@ namespace Emby.Dlna.ContentDirectory
 
         private IEnumerable<KeyValuePair<string, string>> HandleXGetFeatureList()
         {
-            return new Headers(true)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "FeatureList", GetFeatureListXml() }
             };
@@ -183,12 +190,24 @@ namespace Emby.Dlna.ContentDirectory
             return builder.ToString();
         }
 
-        private async Task<IEnumerable<KeyValuePair<string, string>>> HandleBrowse(Headers sparams, User user, string deviceId)
+        public string GetValueOrDefault(IDictionary<string, string> sparams, string key, string defaultValue)
+        {
+            string val;
+
+            if (sparams.TryGetValue(key, out val))
+            {
+                return val;
+            }
+
+            return defaultValue;
+        }
+
+        private async Task<IEnumerable<KeyValuePair<string, string>>> HandleBrowse(IDictionary<string, string> sparams, User user, string deviceId)
         {
             var id = sparams["ObjectID"];
             var flag = sparams["BrowseFlag"];
-            var filter = new Filter(sparams.GetValueOrDefault("Filter", "*"));
-            var sortCriteria = new SortCriteria(sparams.GetValueOrDefault("SortCriteria", ""));
+            var filter = new Filter(GetValueOrDefault(sparams, "Filter", "*"));
+            var sortCriteria = new SortCriteria(GetValueOrDefault(sparams, "SortCriteria", ""));
 
             var provided = 0;
 
@@ -241,7 +260,7 @@ namespace Emby.Dlna.ContentDirectory
                 {
                     totalCount = 1;
 
-                    if (item.IsFolder || serverItem.StubType.HasValue)
+                    if (item.IsDisplayedAsFolder || serverItem.StubType.HasValue)
                     {
                         var childrenResult = (await GetUserItems(item, serverItem.StubType, user, sortCriteria, start, requestedCount).ConfigureAwait(false));
 
@@ -249,7 +268,7 @@ namespace Emby.Dlna.ContentDirectory
                     }
                     else
                     {
-                        _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, item, null, null, deviceId, filter);
+                        _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, item, user, null, null, deviceId, filter);
                     }
 
                     provided++;
@@ -266,7 +285,7 @@ namespace Emby.Dlna.ContentDirectory
                         var childItem = i.Item;
                         var displayStubType = i.StubType;
 
-                        if (childItem.IsFolder || displayStubType.HasValue)
+                        if (childItem.IsDisplayedAsFolder || displayStubType.HasValue)
                         {
                             var childCount = (await GetUserItems(childItem, displayStubType, user, sortCriteria, null, 0).ConfigureAwait(false))
                                 .TotalRecordCount;
@@ -275,7 +294,7 @@ namespace Emby.Dlna.ContentDirectory
                         }
                         else
                         {
-                            _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, childItem, item, serverItem.StubType, deviceId, filter);
+                            _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, childItem, user, item, serverItem.StubType, deviceId, filter);
                         }
                     }
                 }
@@ -294,11 +313,17 @@ namespace Emby.Dlna.ContentDirectory
                 };
         }
 
-        private async Task<IEnumerable<KeyValuePair<string, string>>> HandleSearch(Headers sparams, User user, string deviceId)
+        private Task<IEnumerable<KeyValuePair<string, string>>> HandleX_BrowseByLetter(IDictionary<string, string> sparams, User user, string deviceId)
         {
-            var searchCriteria = new SearchCriteria(sparams.GetValueOrDefault("SearchCriteria", ""));
-            var sortCriteria = new SortCriteria(sparams.GetValueOrDefault("SortCriteria", ""));
-            var filter = new Filter(sparams.GetValueOrDefault("Filter", "*"));
+            // TODO: Implement this method
+            return HandleSearch(sparams, user, deviceId);
+        }
+
+        private async Task<IEnumerable<KeyValuePair<string, string>>> HandleSearch(IDictionary<string, string> sparams, User user, string deviceId)
+        {
+            var searchCriteria = new SearchCriteria(GetValueOrDefault(sparams, "SearchCriteria", ""));
+            var sortCriteria = new SortCriteria(GetValueOrDefault(sparams, "SortCriteria", ""));
+            var filter = new Filter(GetValueOrDefault(sparams, "Filter", "*"));
 
             // sort example: dc:title, dc:date
 
@@ -356,7 +381,7 @@ namespace Emby.Dlna.ContentDirectory
 
                 foreach (var i in childrenResult.Items)
                 {
-                    if (i.IsFolder)
+                    if (i.IsDisplayedAsFolder)
                     {
                         var childCount = (await GetChildrenSorted(i, user, searchCriteria, sortCriteria, null, 0).ConfigureAwait(false))
                             .TotalRecordCount;
@@ -365,7 +390,7 @@ namespace Emby.Dlna.ContentDirectory
                     }
                     else
                     {
-                        _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, i, item, serverItem.StubType, deviceId, filter);
+                        _didlBuilder.WriteItemElement(_config.GetDlnaConfiguration(), writer, i, user, item, serverItem.StubType, deviceId, filter);
                     }
                 }
 
@@ -440,6 +465,16 @@ namespace Emby.Dlna.ContentDirectory
 
         private async Task<QueryResult<ServerItem>> GetUserItems(BaseItem item, StubType? stubType, User user, SortCriteria sort, int? startIndex, int? limit)
         {
+            if (item is MusicGenre)
+            {
+                return GetMusicGenreItems(item, null, user, sort, startIndex, limit);
+            }
+
+            if (item is MusicArtist)
+            {
+                return GetMusicArtistItems(item, null, user, sort, startIndex, limit);
+            }
+
             if (stubType.HasValue)
             {
                 if (stubType.Value == StubType.People)
@@ -452,7 +487,7 @@ namespace Emby.Dlna.ContentDirectory
 
                     var result = new QueryResult<ServerItem>
                     {
-                        Items = items.Select(i => new ServerItem { Item = i, StubType = StubType.Folder }).ToArray(),
+                        Items = items.Select(i => new ServerItem(i)).ToArray(),
                         TotalRecordCount = items.Length
                     };
 
@@ -470,46 +505,93 @@ namespace Emby.Dlna.ContentDirectory
 
             var folder = (Folder)item;
 
-            var sortOrders = new List<string>();
-            if (!folder.IsPreSorted)
-            {
-                sortOrders.Add(ItemSortBy.SortName);
-            }
-
-            var queryResult = await folder.GetItems(new InternalItemsQuery
+            var query = new InternalItemsQuery
             {
                 Limit = limit,
                 StartIndex = startIndex,
-                SortBy = sortOrders.ToArray(),
-                SortOrder = sort.SortOrder,
                 User = user,
                 IsMissing = false,
-                PresetViews = new[] { CollectionType.Movies, CollectionType.TvShows, CollectionType.Music },
-                ExcludeItemTypes = new[] { typeof(Game).Name, typeof(Book).Name },
+                PresetViews = new[] {CollectionType.Movies, CollectionType.TvShows, CollectionType.Music},
+                ExcludeItemTypes = new[] {typeof (Game).Name, typeof (Book).Name},
                 IsPlaceHolder = false
+            };
 
-            }).ConfigureAwait(false);
+            SetSorting(query, sort, folder.IsPreSorted);
 
-            var serverItems = queryResult
+            var queryResult = await folder.GetItems(query).ConfigureAwait(false);
+
+            return ToResult(queryResult);
+        }
+
+        private QueryResult<ServerItem> GetMusicArtistItems(BaseItem item, Guid? parentId, User user, SortCriteria sort, int? startIndex, int? limit)
+        {
+            var query = new InternalItemsQuery(user)
+            {
+                Recursive = true,
+                ParentId = parentId,
+                ArtistIds = new[] { item.Id.ToString("N") },
+                IncludeItemTypes = new[] { typeof(MusicAlbum).Name },
+                Limit = limit,
+                StartIndex = startIndex
+            };
+
+            SetSorting(query, sort, false);
+
+            var result = _libraryManager.GetItemsResult(query);
+
+            return ToResult(result);
+        }
+
+        private QueryResult<ServerItem> GetMusicGenreItems(BaseItem item, Guid? parentId, User user, SortCriteria sort, int? startIndex, int? limit)
+        {
+            var query = new InternalItemsQuery(user)
+            {
+                Recursive = true,
+                ParentId = parentId,
+                GenreIds = new[] {item.Id.ToString("N")},
+                IncludeItemTypes = new[] {typeof (MusicAlbum).Name},
+                Limit = limit,
+                StartIndex = startIndex
+            };
+
+            SetSorting(query, sort, false);
+
+            var result = _libraryManager.GetItemsResult(query);
+
+            return ToResult(result);
+        }
+
+        private QueryResult<ServerItem> ToResult(QueryResult<BaseItem> result)
+        {
+            var serverItems = result
                 .Items
-                .Select(i => new ServerItem
-                {
-                    Item = i
-                })
+                .Select(i => new ServerItem(i))
                 .ToArray();
 
             return new QueryResult<ServerItem>
             {
-                TotalRecordCount = queryResult.TotalRecordCount,
+                TotalRecordCount = result.TotalRecordCount,
                 Items = serverItems
             };
+        }
+
+        private void SetSorting(InternalItemsQuery query, SortCriteria sort, bool isPreSorted)
+        {
+            var sortOrders = new List<string>();
+            if (!isPreSorted)
+            {
+                sortOrders.Add(ItemSortBy.SortName);
+            }
+
+            query.SortBy = sortOrders.ToArray();
+            query.SortOrder = sort.SortOrder;
         }
 
         private QueryResult<ServerItem> GetItemsFromPerson(Person person, User user, int? startIndex, int? limit)
         {
             var itemsResult = _libraryManager.GetItemsResult(new InternalItemsQuery(user)
             {
-                Person = person.Name,
+                PersonIds = new[] { person.Id.ToString("N") },
                 IncludeItemTypes = new[] { typeof(Movie).Name, typeof(Series).Name, typeof(Trailer).Name },
                 SortBy = new[] { ItemSortBy.SortName },
                 Limit = limit,
@@ -517,11 +599,7 @@ namespace Emby.Dlna.ContentDirectory
 
             });
 
-            var serverItems = itemsResult.Items.Select(i => new ServerItem
-            {
-                Item = i,
-                StubType = null
-            })
+            var serverItems = itemsResult.Items.Select(i => new ServerItem(i))
             .ToArray();
 
             return new QueryResult<ServerItem>
@@ -538,25 +616,11 @@ namespace Emby.Dlna.ContentDirectory
             return result;
         }
 
-        private bool EnablePeopleDisplay(BaseItem item)
-        {
-            if (_libraryManager.GetPeopleNames(new InternalPeopleQuery
-            {
-                ItemId = item.Id
-
-            }).Count > 0)
-            {
-                return item is Movie;
-            }
-
-            return false;
-        }
-
         private ServerItem GetItemFromObjectId(string id, User user)
         {
             return DidlBuilder.IsIdRoot(id)
 
-                 ? new ServerItem { Item = user.RootFolder }
+                 ? new ServerItem(user.RootFolder)
                  : ParseItemId(id, user);
         }
 
@@ -591,16 +655,15 @@ namespace Emby.Dlna.ContentDirectory
             {
                 var item = _libraryManager.GetItemById(itemId);
 
-                return new ServerItem
+                return new ServerItem(item)
                 {
-                    Item = item,
                     StubType = stubType
                 };
             }
 
             Logger.Error("Error parsing item Id: {0}. Returning user root folder.", id);
 
-            return new ServerItem { Item = user.RootFolder };
+            return new ServerItem(user.RootFolder);
         }
     }
 
@@ -608,6 +671,16 @@ namespace Emby.Dlna.ContentDirectory
     {
         public BaseItem Item { get; set; }
         public StubType? StubType { get; set; }
+
+        public ServerItem(BaseItem item)
+        {
+            Item = item;
+
+            if (item is IItemByName && !(item is Folder))
+            {
+                StubType = Dlna.ContentDirectory.StubType.Folder;
+            }
+        }
     }
 
     public enum StubType

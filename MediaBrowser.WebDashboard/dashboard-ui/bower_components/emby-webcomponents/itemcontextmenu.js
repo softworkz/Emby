@@ -1,8 +1,6 @@
 define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter', 'playbackManager', 'loading', 'appSettings'], function (appHost, globalize, connectionManager, itemHelper, embyRouter, playbackManager, loading, appSettings) {
     'use strict';
 
-    var isMobileApp = window.Dashboard != null;
-
     function getCommands(options) {
 
         var item = options.item;
@@ -15,6 +13,11 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
         return apiClient.getCurrentUser().then(function (user) {
 
             var commands = [];
+
+            if (itemHelper.isLocalItem(item)) {
+
+                return commands;
+            }
 
             if (itemHelper.supportsAddingToCollection(item)) {
                 commands.push({
@@ -51,7 +54,7 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                 });
             }
 
-            if (item.CanDelete) {
+            if (item.CanDelete && options.deleteItem !== false) {
 
                 if (item.Type === 'Playlist' || item.Type === 'BoxSet') {
                     commands.push({
@@ -64,6 +67,13 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                         id: 'delete'
                     });
                 }
+            }
+
+            if (item.CanDownload && appHost.supports('filedownload')) {
+                commands.push({
+                    name: globalize.translate('sharedcomponents#Download'),
+                    id: 'download'
+                });
             }
 
             if (itemHelper.canEdit(user, item)) {
@@ -101,13 +111,6 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                 }
             }
 
-            if (item.CanDownload && appHost.supports('filedownload')) {
-                commands.push({
-                    name: globalize.translate('sharedcomponents#Download'),
-                    id: 'download'
-                });
-            }
-
             if (options.identify !== false) {
                 if (itemHelper.canIdentify(user, item.Type)) {
                     commands.push({
@@ -141,13 +144,6 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                         name: globalize.translate('sharedcomponents#Play'),
                         id: 'resume'
                     });
-
-                    if (isMobileApp && appSettings.enableExternalPlayers()) {
-                        commands.push({
-                            name: globalize.translate('ButtonPlayExternalPlayer'),
-                            id: 'externalplayer'
-                        });
-                    }
                 }
 
                 if (options.playAllFromHere && item.Type !== 'Program' && item.Type !== 'TvChannel') {
@@ -174,7 +170,7 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                 }
             }
 
-            if (item.Type === 'Program') {
+            if (item.Type === 'Program' && options.record !== false) {
 
                 commands.push({
                     name: Globalize.translate('sharedcomponents#Record'),
@@ -184,7 +180,7 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
 
             if (user.Policy.IsAdministrator) {
 
-                if (item.Type !== 'Timer' && item.Type !== 'SeriesTimer' && item.Type !== 'Program' && !(item.Type === 'Recording' && item.Status !== 'Completed')) {
+                if (item.Type !== 'Timer' && item.Type !== 'SeriesTimer' && item.Type !== 'Program' && item.Type !== 'TvChannel' && !(item.Type === 'Recording' && item.Status !== 'Completed')) {
                     commands.push({
                         name: globalize.translate('sharedcomponents#Refresh'),
                         id: 'refresh'
@@ -411,10 +407,6 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
                         });
                         break;
                     }
-                case 'externalplayer':
-                    LibraryBrowser.playInExternalPlayer(itemId);
-                    getResolveFunction(resolve, id)();
-                    break;
                 case 'album':
                     {
                         embyRouter.showItem(item.AlbumId, item.ServerId);
@@ -577,25 +569,16 @@ define(['apphost', 'globalize', 'connectionManager', 'itemHelper', 'embyRouter',
 
         return new Promise(function (resolve, reject) {
 
-            var itemId = item.Id;
+            require(['deleteHelper'], function (deleteHelper) {
 
-            var msg = globalize.translate('sharedcomponents#ConfirmDeleteItem');
-            var title = globalize.translate('sharedcomponents#HeaderDeleteItem');
-
-            require(['confirm'], function (confirm) {
-
-                confirm({
-
-                    title: title,
-                    text: msg,
-                    confirmText: globalize.translate('sharedcomponents#Delete'),
-                    primary: 'cancel'
+                deleteHelper.deleteItem({
+                    
+                    item: item,
+                    navigate: false
 
                 }).then(function () {
 
-                    apiClient.deleteItem(itemId).then(function () {
-                        resolve(true);
-                    });
+                    resolve(true);
 
                 }, reject);
 

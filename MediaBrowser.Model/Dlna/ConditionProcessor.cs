@@ -1,7 +1,9 @@
 ﻿using MediaBrowser.Model.Extensions;
 using MediaBrowser.Model.MediaInfo;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace MediaBrowser.Model.Dlna
 {
@@ -22,7 +24,7 @@ namespace MediaBrowser.Model.Dlna
             int? numVideoStreams,
             int? numAudioStreams,
             string videoCodecTag,
-            bool? isAvc)
+            bool? isAvc )
         {
             switch (condition.Property)
             {
@@ -122,6 +124,7 @@ namespace MediaBrowser.Model.Dlna
                 switch (condition.Condition)
                 {
                     case ProfileConditionType.Equals:
+                    case ProfileConditionType.EqualsAny:
                         return currentValue.Value.Equals(expected);
                     case ProfileConditionType.GreaterThanEqual:
                         return currentValue.Value >= expected;
@@ -130,7 +133,7 @@ namespace MediaBrowser.Model.Dlna
                     case ProfileConditionType.NotEquals:
                         return !currentValue.Value.Equals(expected);
                     default:
-                        throw new InvalidOperationException("Unexpected ProfileConditionType");
+                        throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
                 }
             }
 
@@ -158,7 +161,7 @@ namespace MediaBrowser.Model.Dlna
                 case ProfileConditionType.NotEquals:
                     return !StringHelper.EqualsIgnoreCase(currentValue, expected);
                 default:
-                    throw new InvalidOperationException("Unexpected ProfileConditionType");
+                    throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
             }
         }
 
@@ -180,7 +183,7 @@ namespace MediaBrowser.Model.Dlna
                     case ProfileConditionType.NotEquals:
                         return currentValue.Value != expected;
                     default:
-                        throw new InvalidOperationException("Unexpected ProfileConditionType");
+                        throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
                 }
             }
 
@@ -209,7 +212,7 @@ namespace MediaBrowser.Model.Dlna
                     case ProfileConditionType.NotEquals:
                         return !currentValue.Value.Equals(expected);
                     default:
-                        throw new InvalidOperationException("Unexpected ProfileConditionType");
+                        throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
                 }
             }
 
@@ -238,7 +241,7 @@ namespace MediaBrowser.Model.Dlna
                     case ProfileConditionType.NotEquals:
                         return !currentValue.Value.Equals(expected);
                     default:
-                        throw new InvalidOperationException("Unexpected ProfileConditionType");
+                        throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
                 }
             }
 
@@ -262,7 +265,7 @@ namespace MediaBrowser.Model.Dlna
                 case ProfileConditionType.NotEquals:
                     return timestamp != expected;
                 default:
-                    throw new InvalidOperationException("Unexpected ProfileConditionType");
+                    throw new InvalidOperationException("Unexpected ProfileConditionType: " + condition.Condition);
             }
         }
     }

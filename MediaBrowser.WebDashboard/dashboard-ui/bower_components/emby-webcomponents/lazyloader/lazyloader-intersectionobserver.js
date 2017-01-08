@@ -1,4 +1,4 @@
-define(['visibleinviewport', 'browser', 'dom'], function (visibleinviewport, browser, dom) {
+define([], function () {
     'use strict';
 
     function LazyLoader(options) {
@@ -88,7 +88,7 @@ define(['visibleinviewport', 'browser', 'dom'], function (visibleinviewport, bro
     LazyLoader.lazyChildren = function (elem, callback) {
 
         unveilElements(elem.getElementsByClassName('lazy'), elem, callback);
-    }
+    };
 
     return LazyLoader;
 });

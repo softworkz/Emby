@@ -180,6 +180,17 @@ namespace MediaBrowser.MediaEncoding.Probing
                 {
                     info.Video3DFormat = Video3DFormat.FullSideBySide;
                 }
+
+                var videoStreamsBitrate = info.MediaStreams.Where(i => i.Type == MediaStreamType.Video).Select(i => i.BitRate ?? 0).Sum();
+                // If ffprobe reported the container bitrate as being the same as the video stream bitrate, then it's wrong
+                if (videoStreamsBitrate == (info.Bitrate ?? 0))
+                {
+                    var streamBitrates = info.MediaStreams.Where(i => !i.IsExternal).Select(i => i.BitRate ?? 0).Sum();
+                    if (streamBitrates > (info.Bitrate ?? 0))
+                    {
+                        info.Bitrate = streamBitrates;
+                    }
+                }
             }
 
             return info;
@@ -188,7 +199,13 @@ namespace MediaBrowser.MediaEncoding.Probing
         private void FetchFromItunesInfo(string xml, MediaInfo info)
         {
             // Make things simpler and strip out the dtd
-            xml = xml.Substring(xml.IndexOf("<plist", StringComparison.OrdinalIgnoreCase));
+            var plistIndex = xml.IndexOf("<plist", StringComparison.OrdinalIgnoreCase);
+
+            if (plistIndex != -1)
+            {
+                xml = xml.Substring(plistIndex);
+            }
+
             xml = "<?xml version=\"1.0\"?>" + xml;
 
             // <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>cast</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>name</key>\n\t\t\t<string>Blender Foundation</string>\n\t\t</dict>\n\t\t<dict>\n\t\t\t<key>name</key>\n\t\t\t<string>Janus Bager Kristensen</string>\n\t\t</dict>\n\t</array>\n\t<key>directors</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>name</key>\n\t\t\t<string>Sacha Goedegebure</string>\n\t\t</dict>\n\t</array>\n\t<key>studio</key>\n\t<string>Blender Foundation</string>\n</dict>\n</plist>\n
@@ -196,35 +213,48 @@ namespace MediaBrowser.MediaEncoding.Probing
             {
                 using (var streamReader = new StreamReader(stream))
                 {
-                    // Use XmlReader for best performance
-                    using (var reader = XmlReader.Create(streamReader))
+                    try
                     {
-                        reader.MoveToContent();
-                        reader.Read();
-
-                        // Loop through each element
-                        while (!reader.EOF)
+                        // Use XmlReader for best performance
+                        using (var reader = XmlReader.Create(streamReader))
                         {
-                            if (reader.NodeType == XmlNodeType.Element)
+                            reader.MoveToContent();
+                            reader.Read();
+
+                            // Loop through each element
+                            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                             {
-                                switch (reader.Name)
+                                if (reader.NodeType == XmlNodeType.Element)
                                 {
-                                    case "dict":
-                                        using (var subtree = reader.ReadSubtree())
-                                        {
-                                            ReadFromDictNode(subtree, info);
-                                        }
-                                        break;
-                                    default:
-                                        reader.Skip();
-                                        break;
+                                    switch (reader.Name)
+                                    {
+                                        case "dict":
+                                            if (reader.IsEmptyElement)
+                                            {
+                                                reader.Read();
+                                                continue;
+                                            }
+                                            using (var subtree = reader.ReadSubtree())
+                                            {
+                                                ReadFromDictNode(subtree, info);
+                                            }
+                                            break;
+                                        default:
+                                            reader.Skip();
+                                            break;
+                                    }
+                                }
+                                else
+                                {
+                                    reader.Read();
                                 }
                             }
-                            else
-                            {
-                                reader.Read();
-                            }
                         }
+                    }
+                    catch (XmlException)
+                    {
+                        // I've seen probe examples where the iTunMOVI value is just "<"
+                        // So we should not allow this to fail the entire probing operation
                     }
                 }
             }
@@ -239,7 +269,7 @@ namespace MediaBrowser.MediaEncoding.Probing
             reader.Read();
 
             // Loop through each element
-            while (!reader.EOF)
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
@@ -265,9 +295,14 @@ namespace MediaBrowser.MediaEncoding.Probing
                             }
                             break;
                         case "array":
-                            if (!string.IsNullOrWhiteSpace(currentKey))
+                            if (reader.IsEmptyElement)
                             {
-                                using (var subtree = reader.ReadSubtree())
+                                reader.Read();
+                                continue;
+                            }
+                            using (var subtree = reader.ReadSubtree())
+                            {
+                                if (!string.IsNullOrWhiteSpace(currentKey))
                                 {
                                     pairs.AddRange(ReadValueArray(subtree));
                                 }
@@ -294,13 +329,19 @@ namespace MediaBrowser.MediaEncoding.Probing
             reader.Read();
 
             // Loop through each element
-            while (!reader.EOF)
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
                     switch (reader.Name)
                     {
                         case "dict":
+
+                            if (reader.IsEmptyElement)
+                            {
+                                reader.Read();
+                                continue;
+                            }
                             using (var subtree = reader.ReadSubtree())
                             {
                                 var dict = GetNameValuePair(subtree);
@@ -383,7 +424,7 @@ namespace MediaBrowser.MediaEncoding.Probing
             reader.Read();
 
             // Loop through each element
-            while (!reader.EOF)
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
@@ -996,7 +1037,7 @@ namespace MediaBrowser.MediaEncoding.Probing
             {
                 _splitWhiteList = new List<string>
                         {
-                            "AC/DV"
+                            "AC/DC"
                         };
             }
 

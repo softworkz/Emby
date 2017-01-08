@@ -62,6 +62,8 @@ namespace MediaBrowser.Controller.Library
         /// <returns>BaseItem.</returns>
         BaseItem FindByPath(string path, bool? isFolder);
 
+        Guid? FindIdByPath(string path, bool? isFolder);
+
         /// <summary>
         /// Gets the artist.
         /// </summary>
@@ -538,10 +540,7 @@ namespace MediaBrowser.Controller.Library
         /// <summary>
         /// Gets the items.
         /// </summary>
-        /// <param name="query">The query.</param>
-        /// <param name="parentIds">The parent ids.</param>
-        /// <returns>List&lt;BaseItem&gt;.</returns>
-        IEnumerable<BaseItem> GetItemList(InternalItemsQuery query, IEnumerable<string> parentIds);
+        IEnumerable<BaseItem> GetItemList(InternalItemsQuery query, List<BaseItem> parents);
 
         /// <summary>
         /// Gets the items result.
@@ -574,5 +573,6 @@ namespace MediaBrowser.Controller.Library
 
         void RegisterIgnoredPath(string path);
         void UnRegisterIgnoredPath(string path);
+        int GetCount(InternalItemsQuery query);
     }
 }

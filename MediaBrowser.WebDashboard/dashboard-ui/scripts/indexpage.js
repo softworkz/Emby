@@ -1,4 +1,4 @@
-﻿define(['libraryBrowser', 'emby-tabs', 'emby-button'], function (libraryBrowser) {
+﻿define(['libraryBrowser', 'playbackManager', 'emby-tabs', 'emby-button'], function (libraryBrowser, playbackManager) {
     'use strict';
 
     var defaultFirstSection = 'smalllibrarytiles';
@@ -38,16 +38,16 @@
             return Sections.loadRecentlyAdded(elem, user);
         }
         else if (section == 'librarytiles') {
-            return Sections.loadLibraryTiles(elem, user, 'backdrop', index, false);
+            return Sections.loadLibraryTiles(elem, user, 'backdrop', index);
         }
         else if (section == 'smalllibrarytiles') {
-            return Sections.loadLibraryTiles(elem, user, 'smallBackdrop', index, false);
+            return Sections.loadLibraryTiles(elem, user, 'smallBackdrop', index);
         }
         else if (section == 'smalllibrarytiles-automobile') {
-            return Sections.loadLibraryTiles(elem, user, 'smallBackdrop', index, true);
+            return Sections.loadLibraryTiles(elem, user, 'smallBackdrop', index);
         }
         else if (section == 'librarytiles-automobile') {
-            return Sections.loadLibraryTiles(elem, user, 'backdrop', index, true);
+            return Sections.loadLibraryTiles(elem, user, 'backdrop', index);
         }
         else if (section == 'librarybuttons') {
             return Sections.loadlibraryButtons(elem, userId, index);
@@ -348,12 +348,12 @@
         }
 
         view.addEventListener('viewshow', function (e) {
-            Events.on(MediaController, 'playbackstop', onPlaybackStop);
+            Events.on(playbackManager, 'playbackstop', onPlaybackStop);
             Events.on(ApiClient, "websocketmessage", onWebSocketMessage);
         });
 
         view.addEventListener('viewbeforehide', function (e) {
-            Events.off(MediaController, 'playbackstop', onPlaybackStop);
+            Events.off(playbackManager, 'playbackstop', onPlaybackStop);
             Events.off(ApiClient, "websocketmessage", onWebSocketMessage);
         });
 

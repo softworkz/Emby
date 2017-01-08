@@ -15,22 +15,25 @@ namespace Emby.Server.Implementations.LiveTv.EmbyTV
 
         public static TimerInfo CreateTimer(ProgramInfo parent, SeriesTimerInfo seriesTimer)
         {
-            var timer = new TimerInfo();
-
-            timer.ChannelId = parent.ChannelId;
-            timer.Id = (seriesTimer.Id + parent.Id).GetMD5().ToString("N");
-            timer.StartDate = parent.StartDate;
-            timer.EndDate = parent.EndDate;
-            timer.ProgramId = parent.Id;
-            timer.PrePaddingSeconds = seriesTimer.PrePaddingSeconds;
-            timer.PostPaddingSeconds = seriesTimer.PostPaddingSeconds;
-            timer.IsPostPaddingRequired = seriesTimer.IsPostPaddingRequired;
-            timer.IsPrePaddingRequired = seriesTimer.IsPrePaddingRequired;
-            timer.KeepUntil = seriesTimer.KeepUntil;
-            timer.Priority = seriesTimer.Priority;
-            timer.Name = parent.Name;
-            timer.Overview = parent.Overview;
-            timer.SeriesTimerId = seriesTimer.Id;
+            var timer = new TimerInfo
+            {
+                ChannelId = parent.ChannelId,
+                Id = (seriesTimer.Id + parent.Id).GetMD5().ToString("N"),
+                StartDate = parent.StartDate,
+                EndDate = parent.EndDate,
+                ProgramId = parent.Id,
+                PrePaddingSeconds = seriesTimer.PrePaddingSeconds,
+                PostPaddingSeconds = seriesTimer.PostPaddingSeconds,
+                IsPostPaddingRequired = seriesTimer.IsPostPaddingRequired,
+                IsPrePaddingRequired = seriesTimer.IsPrePaddingRequired,
+                KeepUntil = seriesTimer.KeepUntil,
+                Priority = seriesTimer.Priority,
+                Name = parent.Name,
+                Overview = parent.Overview,
+                SeriesId = parent.SeriesId,
+                SeriesTimerId = seriesTimer.Id,
+                ShowId = parent.ShowId
+            };
 
             CopyProgramInfoToTimerInfo(parent, timer);
 
@@ -39,6 +42,11 @@ namespace Emby.Server.Implementations.LiveTv.EmbyTV
 
         public static void CopyProgramInfoToTimerInfo(ProgramInfo programInfo, TimerInfo timerInfo)
         {
+            timerInfo.Name = programInfo.Name;
+            timerInfo.StartDate = programInfo.StartDate;
+            timerInfo.EndDate = programInfo.EndDate;
+            timerInfo.ChannelId = programInfo.ChannelId;
+
             timerInfo.SeasonNumber = programInfo.SeasonNumber;
             timerInfo.EpisodeNumber = programInfo.EpisodeNumber;
             timerInfo.IsMovie = programInfo.IsMovie;
@@ -52,9 +60,11 @@ namespace Emby.Server.Implementations.LiveTv.EmbyTV
 
             timerInfo.HomePageUrl = programInfo.HomePageUrl;
             timerInfo.CommunityRating = programInfo.CommunityRating;
+            timerInfo.Overview = programInfo.Overview;
             timerInfo.ShortOverview = programInfo.ShortOverview;
             timerInfo.OfficialRating = programInfo.OfficialRating;
             timerInfo.IsRepeat = programInfo.IsRepeat;
+            timerInfo.SeriesId = programInfo.SeriesId;
         }
 
         public static string GetRecordingName(TimerInfo info)

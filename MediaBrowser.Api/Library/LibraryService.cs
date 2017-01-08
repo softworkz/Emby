@@ -369,7 +369,7 @@ namespace MediaBrowser.Api.Library
 
             if (item is Movie || (program != null && program.IsMovie) || item is Trailer)
             {
-                return new MoviesService(_userManager, _userDataManager, _libraryManager, _itemRepo, _dtoService, _config, _authContext)
+                return new MoviesService(_userManager, _libraryManager, _dtoService, _config, _authContext)
                 {
                     Request = Request,
 
@@ -680,14 +680,17 @@ namespace MediaBrowser.Api.Library
         /// <param name="request">The request.</param>
         public void Post(RefreshLibrary request)
         {
-            try
+            Task.Run(() =>
             {
-                _libraryManager.ValidateMediaLibrary(new Progress<double>(), CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                Logger.ErrorException("Error refreshing library", ex);
-            }
+                try
+                {
+                    _libraryManager.ValidateMediaLibrary(new Progress<double>(), CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Logger.ErrorException("Error refreshing library", ex);
+                }
+            });
         }
 
         /// <summary>

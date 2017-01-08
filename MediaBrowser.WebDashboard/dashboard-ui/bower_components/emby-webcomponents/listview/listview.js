@@ -224,7 +224,9 @@ define(['itemHelper', 'mediaInfo', 'indicators', 'connectionManager', 'layoutMan
             html += '<' + outerTagName + ' class="' + cssClass + '" data-index="' + i + '"' + playlistItemId + ' data-action="' + action + '" data-isfolder="' + item.IsFolder + '" data-id="' + item.Id + '" data-serverid="' + item.ServerId + '" data-type="' + item.Type + '"' + mediaTypeData + collectionTypeData + channelIdData + positionTicksData + collectionIdData + playlistIdData + '>';
 
             if (!clickEntireItem && options.dragHandle) {
-                html += '<button is="paper-icon-button-light" class="listViewDragHandle autoSize listItemButton"><i class="md-icon">&#xE25D;</i></button>';
+                //html += '<button is="paper-icon-button-light" class="listViewDragHandle autoSize listItemButton"><i class="md-icon">&#xE25D;</i></button>';
+                // Firefox and Edge are not allowing the button to be draggable
+                html += '<i class="listViewDragHandle md-icon listItemIcon listItemIcon-transparent">&#xE25D;</i>';
             }
 
             if (options.image !== false) {
@@ -232,8 +234,12 @@ define(['itemHelper', 'mediaInfo', 'indicators', 'connectionManager', 'layoutMan
 
                 var imageClass = isLargeStyle ? 'listItemImage listItemImage-large' : 'listItemImage';
 
+                if (!clickEntireItem) {
+                    imageClass += ' itemAction';
+                }
+
                 if (imgUrl) {
-                    html += '<div class="' + imageClass + ' lazy" data-src="' + imgUrl + '" item-icon>';
+                    html += '<div data-action="link" class="' + imageClass + ' lazy" data-src="' + imgUrl + '" item-icon>';
                 } else {
                     html += '<div class="' + imageClass + '">';
                 }
@@ -310,7 +316,8 @@ define(['itemHelper', 'mediaInfo', 'indicators', 'connectionManager', 'layoutMan
                 textlines.push(displayName);
             }
 
-            if (options.artist !== false) {
+            if (options.artist !== false && (options.artist === true || item.AlbumArtist !== options.containerAlbumArtist)) {
+
                 if (item.ArtistItems && item.Type !== 'MusicAlbum') {
                     textlines.push(item.ArtistItems.map(function (a) {
                         return a.Name;
@@ -318,7 +325,7 @@ define(['itemHelper', 'mediaInfo', 'indicators', 'connectionManager', 'layoutMan
                     }).join(', '));
                 }
 
-                if (item.AlbumArtist && item.Type === 'MusicAlbum') {
+                else if (item.AlbumArtist && item.Type === 'MusicAlbum') {
                     textlines.push(item.AlbumArtist);
                 }
             }

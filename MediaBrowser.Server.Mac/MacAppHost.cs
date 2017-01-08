@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Reflection;
 using Emby.Server.Core;
-using Emby.Server.Core.Data;
-using Emby.Server.Core.FFMpeg;
+using Emby.Server.Implementations;
+using Emby.Server.Implementations.FFMpeg;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.System;
@@ -22,7 +22,7 @@ namespace MediaBrowser.Server.Mac
         {
             get
             {
-                return false;
+                return true;
             }
         }
 
@@ -33,6 +33,14 @@ namespace MediaBrowser.Server.Mac
                 return false;
             }
         }
+
+		protected override bool SupportsDualModeSockets
+		{
+			get
+			{
+				return true;
+			}
+		}
 
         protected override FFMpegInstallInfo GetFfmpegInstallInfo()
         {
@@ -94,36 +102,9 @@ namespace MediaBrowser.Server.Mac
             throw new NotImplementedException();
         }
 
-        protected override IDbConnector GetDbConnector()
-        {
-            return new DbConnector(Logger);
-        }
-
         protected override void ConfigureAutoRunInternal(bool autorun)
         {
             throw new NotImplementedException();
-        }
-
-        public override void LaunchUrl(string url)
-        {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = url
-                },
-
-                EnableRaisingEvents = true,
-            };
-
-            process.Exited += ProcessExited;
-
-            process.Start();
-        }
-
-        private static void ProcessExited(object sender, EventArgs e)
-        {
-            ((Process)sender).Dispose();
         }
 
         protected override void EnableLoopbackInternal(string appName)

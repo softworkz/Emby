@@ -12,8 +12,7 @@
 
             var id = 'chkGroupFolder' + i.Id;
 
-            var isChecked = (user.Configuration.ExcludeFoldersFromGrouping != null && user.Configuration.ExcludeFoldersFromGrouping.indexOf(i.Id) == -1) ||
-                user.Configuration.GroupedFolders.indexOf(i.Id) != -1;
+            var isChecked = user.Configuration.GroupedFolders.indexOf(i.Id) != -1;
 
             var checkedHtml = isChecked ? ' checked="checked"' : '';
 
@@ -151,7 +150,13 @@
         return list;
     }
 
-    function saveUser(page, user, userSettings) {
+    function refreshGlobalUserSettings(userSettingsInstance) {
+        require(['userSettings'], function (userSettings) {
+            userSettings.importFrom(userSettingsInstance);
+        });
+    }
+
+    function saveUser(page, user, userSettingsInstance) {
 
         user.Configuration.HidePlayedInLatest = page.querySelector('.chkHidePlayedFromLatest').checked;
 
@@ -159,8 +164,6 @@
 
             return i.getAttribute('data-folderid');
         });
-
-        user.Configuration.ExcludeFoldersFromGrouping = null;
 
         user.Configuration.GroupedFolders = getCheckboxItems(".chkGroupFolder", page, true).map(function (i) {
 
@@ -175,10 +178,14 @@
 
         user.Configuration.OrderedViews = orderedViews;
 
-        userSettings.set('homesection0', page.querySelector('#selectHomeSection1').value);
-        userSettings.set('homesection1', page.querySelector('#selectHomeSection2').value);
-        userSettings.set('homesection2', page.querySelector('#selectHomeSection3').value);
-        userSettings.set('homesection3', page.querySelector('#selectHomeSection4').value);
+        userSettingsInstance.set('homesection0', page.querySelector('#selectHomeSection1').value);
+        userSettingsInstance.set('homesection1', page.querySelector('#selectHomeSection2').value);
+        userSettingsInstance.set('homesection2', page.querySelector('#selectHomeSection3').value);
+        userSettingsInstance.set('homesection3', page.querySelector('#selectHomeSection4').value);
+
+        if (user.Id === Dashboard.getCurrentUserId()) {
+            refreshGlobalUserSettings(userSettingsInstance);
+        }
 
         return ApiClient.updateUserConfiguration(user.Id, user.Configuration);
     }

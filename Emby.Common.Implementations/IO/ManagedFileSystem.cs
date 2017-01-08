@@ -397,16 +397,34 @@ namespace Emby.Common.Implementations.IO
 
         private FileAccess GetFileAccess(FileAccessMode mode)
         {
-            var val = (int)mode;
-
-            return (FileAccess)val;
+            switch (mode)
+            {
+                case FileAccessMode.ReadWrite:
+                    return FileAccess.ReadWrite;
+                case FileAccessMode.Write:
+                    return FileAccess.Write;
+                case FileAccessMode.Read:
+                    return FileAccess.Read;
+                default:
+                    throw new Exception("Unrecognized FileAccessMode");
+            }
         }
 
         private FileShare GetFileShare(FileShareMode mode)
         {
-            var val = (int)mode;
-
-            return (FileShare)val;
+            switch (mode)
+            {
+                case FileShareMode.ReadWrite:
+                    return FileShare.ReadWrite;
+                case FileShareMode.Write:
+                    return FileShare.Write;
+                case FileShareMode.Read:
+                    return FileShare.Read;
+                case FileShareMode.None:
+                    return FileShare.None;
+                default:
+                    throw new Exception("Unrecognized FileShareMode");
+            }
         }
 
         public void SetHidden(string path, bool isHidden)
@@ -470,43 +488,15 @@ namespace Emby.Common.Implementations.IO
             }
 
             var temp1 = Path.GetTempFileName();
-            var temp2 = Path.GetTempFileName();
 
             // Copying over will fail against hidden files
-            RemoveHiddenAttribute(file1);
-            RemoveHiddenAttribute(file2);
+            SetHidden(file1, false);
+            SetHidden(file2, false);
 
             CopyFile(file1, temp1, true);
-            CopyFile(file2, temp2, true);
 
+            CopyFile(file2, file1, true);
             CopyFile(temp1, file2, true);
-            CopyFile(temp2, file1, true);
-
-            DeleteFile(temp1);
-            DeleteFile(temp2);
-        }
-
-        /// <summary>
-        /// Removes the hidden attribute.
-        /// </summary>
-        /// <param name="path">The path.</param>
-        private void RemoveHiddenAttribute(string path)
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                throw new ArgumentNullException("path");
-            }
-
-            var currentFile = new FileInfo(path);
-
-            // This will fail if the file is hidden
-            if (currentFile.Exists)
-            {
-                if ((currentFile.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
-                {
-                    currentFile.Attributes &= ~FileAttributes.Hidden;
-                }
-            }
         }
 
         public bool ContainsSubPath(string parentPath, string path)

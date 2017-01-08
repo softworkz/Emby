@@ -328,6 +328,11 @@ namespace MediaBrowser.Providers.MediaInfo
         /// <returns>VideoStream.</returns>
         private BlurayDiscInfo GetBDInfo(string path)
         {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentNullException("path");
+            }
+
             try
             {
                 return _blurayExaminer.GetDiscInfo(path);
@@ -412,7 +417,7 @@ namespace MediaBrowser.Providers.MediaInfo
             }
             if (!string.IsNullOrWhiteSpace(data.Name))
             {
-                if (string.IsNullOrWhiteSpace(video.Name) || string.Equals(video.Name, Path.GetFileNameWithoutExtension(video.Path), StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrWhiteSpace(video.Name) || (string.Equals(video.Name, Path.GetFileNameWithoutExtension(video.Path), StringComparison.OrdinalIgnoreCase) && !video.ProviderIds.Any()))
                 {
                     // Don't use the embedded name for extras because it will often be the same name as the movie
                     if (!video.ExtraType.HasValue && !video.IsOwnedItem)

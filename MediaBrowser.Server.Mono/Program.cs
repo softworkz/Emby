@@ -16,6 +16,7 @@ using Emby.Common.Implementations.Logging;
 using Emby.Common.Implementations.Networking;
 using Emby.Common.Implementations.Security;
 using Emby.Server.Core;
+using Emby.Server.Implementations;
 using Emby.Server.Implementations.IO;
 using MediaBrowser.Model.System;
 using MediaBrowser.Server.Startup.Common.IO;
@@ -35,8 +36,12 @@ namespace MediaBrowser.Server.Mono
         public static void Main(string[] args)
         {
             var applicationPath = Assembly.GetEntryAssembly().Location;
+            var appFolderPath = Path.GetDirectoryName(applicationPath);
 
-            var options = new StartupOptions();
+            TryCopySqliteConfigFile(appFolderPath);
+            SetSqliteProvider();
+
+            var options = new StartupOptions(Environment.GetCommandLineArgs());
 
             // Allow this to be specified on the command line.
             var customProgramDataPath = options.GetOption("-programdata");
@@ -50,7 +55,7 @@ namespace MediaBrowser.Server.Mono
             var logger = _logger = logManager.GetLogger("Main");
 
             ApplicationHost.LogEnvironmentInfo(logger, appPaths, true);
-
+            
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             try
@@ -63,6 +68,25 @@ namespace MediaBrowser.Server.Mono
 
                 _appHost.Dispose();
             }
+        }
+
+        private static void TryCopySqliteConfigFile(string appFolderPath)
+        {
+            try
+            {
+                File.Copy(Path.Combine(appFolderPath, "System.Data.SQLite.dll.config"),
+                    Path.Combine(appFolderPath, "SQLitePCLRaw.provider.sqlite3.dll.config"),
+                    true);
+            }
+            catch
+            {
+                
+            }
+        }
+
+        private static void SetSqliteProvider()
+        {
+            SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
         }
 
         private static ServerApplicationPaths CreateApplicationPaths(string applicationPath, string programDataPath)

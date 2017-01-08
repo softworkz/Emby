@@ -23,7 +23,7 @@ namespace Emby.Dlna.Profiles
                     {
                          Match = HeaderMatchType.Substring,
                          Name = "User-Agent",
-                         Value ="XiP"
+                         Value ="Zip_"
                     }
                 }
             };
@@ -63,22 +63,7 @@ namespace Emby.Dlna.Profiles
 
                 new DirectPlayProfile
                 {
-                    Container = "mp3",
-                    AudioCodec = "mp3",
-                    Type = DlnaProfileType.Audio
-                },
-
-                new DirectPlayProfile
-                {
-                    Container = "alac",
-                    AudioCodec = "alac",
-                    Type = DlnaProfileType.Audio
-                },
-
-                new DirectPlayProfile
-                {
-                    Container = "flac",
-                    AudioCodec = "flac",
+                    Container = "mp3,alac,flac",
                     Type = DlnaProfileType.Audio
                 },
 
@@ -199,6 +184,21 @@ namespace Emby.Dlna.Profiles
                             Property = ProfileConditionValue.AudioChannels,
                             Value = "2",
                             IsRequired = true
+                        }
+                    }
+                },
+
+                new CodecProfile
+                {
+                    Type = CodecType.VideoAudio,
+                    Conditions = new []
+                    {
+                        // The device does not have any audio switching capabilities
+                        new ProfileCondition
+                        {
+                            Condition = ProfileConditionType.Equals,
+                            Property = ProfileConditionValue.IsSecondaryAudio,
+                            Value = "false"
                         }
                     }
                 }
