@@ -570,9 +570,9 @@ namespace Emby.Server.Implementations.Connect
             }
             catch (HttpException ex)
             {
-                if (!ex.StatusCode.HasValue)
+                if (!ex.StatusCode.HasValue || ex.IsTimedOut)
                 {
-                    throw;
+                    throw new Exception("Unable to invite guest, " + ex.Message, ex);
                 }
 
                 // If they entered a username, then whatever the error is just throw it, for example, user not found
@@ -817,7 +817,6 @@ namespace Emby.Server.Implementations.Connect
             }
         }
 
-        private readonly SemaphoreSlim _connectImageSemaphore = new SemaphoreSlim(5, 5);
         private async Task RefreshAuthorizations(List<ServerUserAuthorizationResponse> list, bool refreshImages)
         {
             var users = _userManager.Users.ToList();
@@ -926,7 +925,11 @@ namespace Emby.Server.Implementations.Connect
             }
 
             _data.PendingAuthorizations = newPendingList;
-            CacheData();
+
+            if (!newPendingList.Select(i => i.Id).SequenceEqual(currentPendingList.Select(i => i.Id), StringComparer.Ordinal))
+            {
+                CacheData();
+            }
 
             await RefreshGuestNames(list, refreshImages).ConfigureAwait(false);
         }
@@ -992,7 +995,7 @@ namespace Emby.Server.Implementations.Connect
 
                         if (changed)
                         {
-                            await _providerManager.SaveImage(user, imageUrl, _connectImageSemaphore, ImageType.Primary, null, CancellationToken.None).ConfigureAwait(false);
+                            await _providerManager.SaveImage(user, imageUrl, null, ImageType.Primary, null, CancellationToken.None).ConfigureAwait(false);
 
                             await user.RefreshMetadata(new MetadataRefreshOptions(_fileSystem)
                             {

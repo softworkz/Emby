@@ -8,6 +8,12 @@
 
         var options = [];
 
+        if (maxAllowedWidth >= 3800) {
+            options.push({ name: '4K - 120Mbps', maxHeight: 2160, bitrate: 120000000 });
+            options.push({ name: '4K - 100Mbps', maxHeight: 2160, bitrate: 100000000 });
+            options.push({ name: '4K - 80Mbps', maxHeight: 2160, bitrate: 80000000 });
+        }
+
         // Some 1080- videos are reported as 1912?
         if (maxAllowedWidth >= 1900) {
 
@@ -30,7 +36,7 @@
             options.push({ name: '720p - 6Mbps', maxHeight: 720, bitrate: 6000000 });
             options.push({ name: '720p - 5Mbps', maxHeight: 720, bitrate: 5000000 });
 
-        } else if (maxAllowedWidth >= 700) {
+        } else if (maxAllowedWidth >= 620) {
             options.push({ name: '480p - 4Mbps', maxHeight: 480, bitrate: 4000001 });
             options.push({ name: '480p - 3Mbps', maxHeight: 480, bitrate: 3000001 });
             options.push({ name: '480p - 2.5Mbps', maxHeight: 480, bitrate: 2500000 });

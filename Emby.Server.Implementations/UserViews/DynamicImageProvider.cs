@@ -152,16 +152,8 @@ namespace Emby.Server.Implementations.UserViews
             {
                 CollectionType.Movies,
                 CollectionType.TvShows,
-                CollectionType.Music,
-                CollectionType.Games,
-                CollectionType.Books,
-                CollectionType.MusicVideos,
-                CollectionType.HomeVideos,
-                CollectionType.BoxSets,
-                CollectionType.LiveTv,
                 CollectionType.Playlists,
-                CollectionType.Photos,
-                string.Empty
+                CollectionType.Photos
             };
 
             return collectionStripViewTypes.Contains(view.ViewType ?? string.Empty);
@@ -169,20 +161,14 @@ namespace Emby.Server.Implementations.UserViews
 
         protected override async Task<string> CreateImage(IHasImages item, List<BaseItem> itemsWithImages, string outputPathWithoutExtension, ImageType imageType, int imageIndex)
         {
-            var outputPath = Path.ChangeExtension(outputPathWithoutExtension, ".png");
-
-            var view = (UserView)item;
-            if (imageType == ImageType.Primary && IsUsingCollectionStrip(view))
+            if (itemsWithImages.Count == 0)
             {
-                if (itemsWithImages.Count == 0)
-                {
-                    return null;
-                }
-
-                return await CreateThumbCollage(item, itemsWithImages, outputPath, 960, 540).ConfigureAwait(false);
+                return null;
             }
 
-            return await base.CreateImage(item, itemsWithImages, outputPath, imageType, imageIndex).ConfigureAwait(false);
+            var outputPath = Path.ChangeExtension(outputPathWithoutExtension, ".png");
+
+            return await CreateThumbCollage(item, itemsWithImages, outputPath, 960, 540).ConfigureAwait(false);
         }
     }
 }

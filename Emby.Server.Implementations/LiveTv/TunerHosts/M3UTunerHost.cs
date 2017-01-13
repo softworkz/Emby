@@ -149,13 +149,14 @@ namespace Emby.Server.Implementations.LiveTv.TunerHosts
 
                         }
                     },
-                    RequiresOpening = false,
-                    RequiresClosing = false,
+                    RequiresOpening = true,
+                    RequiresClosing = true,
 
                     ReadAtNativeFramerate = false,
 
                     Id = channel.Path.GetMD5().ToString("N"),
-                    IsInfiniteStream = true
+                    IsInfiniteStream = true,
+                    SupportsDirectStream = false
                 };
 
                 return new List<MediaSourceInfo> { mediaSource };

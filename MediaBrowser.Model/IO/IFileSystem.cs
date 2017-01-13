@@ -120,6 +120,8 @@ namespace MediaBrowser.Model.IO
         /// <param name="file2">The file2.</param>
         void SwapFiles(string file1, string file2);
 
+        bool AreEqual(string path1, string path2);
+
         /// <summary>
         /// Determines whether [contains sub path] [the specified parent path].
         /// </summary>
@@ -369,7 +371,6 @@ namespace MediaBrowser.Model.IO
         Append = 6
     }
 
-    [Flags]
     public enum FileAccessMode
     {
         //
@@ -388,7 +389,6 @@ namespace MediaBrowser.Model.IO
         ReadWrite = 3
     }
 
-    [Flags]
     public enum FileShareMode
     {
         //
@@ -417,16 +417,7 @@ namespace MediaBrowser.Model.IO
         //     or another process) will fail until the file is closed. However, even if this
         //     flag is specified, additional permissions might still be needed to access the
         //     file.
-        ReadWrite = 3,
-        //
-        // Summary:
-        //     Allows subsequent deleting of a file.
-        Delete = 4,
-        //
-        // Summary:
-        //     Makes the file handle inheritable by child processes. This is not directly supported
-        //     by Win32.
-        Inheritable = 16
+        ReadWrite = 3
     }
 
 }

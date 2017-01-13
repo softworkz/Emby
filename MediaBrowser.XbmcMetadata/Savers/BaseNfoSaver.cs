@@ -316,11 +316,11 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
                     if ((stream.CodecTag ?? string.Empty).IndexOf("xvid", StringComparison.OrdinalIgnoreCase) != -1)
                     {
-                        codec = "xvid;";
+                        codec = "xvid";
                     }
                     else if ((stream.CodecTag ?? string.Empty).IndexOf("divx", StringComparison.OrdinalIgnoreCase) != -1)
                     {
-                        codec = "divx;";
+                        codec = "divx";
                     }
 
                     writer.WriteElementString("codec", codec);
@@ -846,7 +846,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             AddUserData(item, writer, userManager, userDataRepo, options);
 
-            AddActors(people, writer, libraryManager, fileSystem, config);
+            AddActors(people, writer, libraryManager, fileSystem, config, options.SaveImagePathsInNfo);
 
             var folder = item as BoxSet;
             if (folder != null)
@@ -911,17 +911,14 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             var image = item.GetImageInfo(ImageType.Primary, 0);
 
-            if (image != null && image.IsLocalFile)
+            if (image != null)
             {
-                writer.WriteElementString("poster", GetPathToSave(image.Path, libraryManager, config));
+                writer.WriteElementString("poster", GetImagePathToSave(image, libraryManager, config));
             }
 
             foreach (var backdrop in item.GetImages(ImageType.Backdrop))
             {
-                if (backdrop.IsLocalFile)
-                {
-                    writer.WriteElementString("fanart", GetPathToSave(backdrop.Path, libraryManager, config));
-                }
+                writer.WriteElementString("fanart", GetImagePathToSave(backdrop, libraryManager, config));
             }
 
             writer.WriteEndElement();
@@ -977,7 +974,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
             writer.WriteEndElement();
         }
 
-        private static void AddActors(List<PersonInfo> people, XmlWriter writer, ILibraryManager libraryManager, IFileSystem fileSystem, IServerConfigurationManager config)
+        private static void AddActors(List<PersonInfo> people, XmlWriter writer, ILibraryManager libraryManager, IFileSystem fileSystem, IServerConfigurationManager config, bool saveImagePath)
         {
             var actors = people
                 .Where(i => !IsPersonType(i, PersonType.Director) && !IsPersonType(i, PersonType.Writer))
@@ -1007,28 +1004,36 @@ namespace MediaBrowser.XbmcMetadata.Savers
                     writer.WriteElementString("sortorder", person.SortOrder.Value.ToString(UsCulture));
                 }
 
-                try
+                if (saveImagePath)
                 {
-                    var personEntity = libraryManager.GetPerson(person.Name);
-                    var image = personEntity.GetImageInfo(ImageType.Primary, 0);
-
-                    if (image != null && image.IsLocalFile)
+                    try
                     {
-                        writer.WriteElementString("thumb", GetPathToSave(image.Path, libraryManager, config));
+                        var personEntity = libraryManager.GetPerson(person.Name);
+                        var image = personEntity.GetImageInfo(ImageType.Primary, 0);
+
+                        if (image != null)
+                        {
+                            writer.WriteElementString("thumb", GetImagePathToSave(image, libraryManager, config));
+                        }
                     }
-                }
-                catch (Exception)
-                {
-                    // Already logged in core
+                    catch (Exception)
+                    {
+                        // Already logged in core
+                    }
                 }
 
                 writer.WriteEndElement();
             }
         }
 
-        private static string GetPathToSave(string path, ILibraryManager libraryManager, IServerConfigurationManager config)
+        private static string GetImagePathToSave(ItemImageInfo image, ILibraryManager libraryManager, IServerConfigurationManager config)
         {
-            return libraryManager.GetPathAfterNetworkSubstitution(path);
+            if (!image.IsLocalFile)
+            {
+                return image.Path;
+            }
+
+            return libraryManager.GetPathAfterNetworkSubstitution(image.Path);
         }
 
         private static bool IsPersonType(PersonInfo person, string type)
@@ -1064,7 +1069,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
                         reader.Read();
 
                         // Loop through each element
-                        while (!reader.EOF)
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             if (reader.NodeType == XmlNodeType.Element)
                             {

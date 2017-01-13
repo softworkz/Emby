@@ -143,7 +143,8 @@ namespace MediaBrowser.Providers.TV
                     Url = ServerTimeUrl,
                     CancellationToken = cancellationToken,
                     EnableHttpCompression = true,
-                    ResourcePool = TvdbSeriesProvider.Current.TvDbResourcePool
+                    ResourcePool = TvdbSeriesProvider.Current.TvDbResourcePool,
+                    BufferContent = false
 
                 }).ConfigureAwait(false))
                 {
@@ -198,7 +199,7 @@ namespace MediaBrowser.Providers.TV
                     reader.Read();
 
                     // Loop through each element
-                    while (!reader.EOF)
+                    while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                     {
                         if (reader.NodeType == XmlNodeType.Element)
                         {
@@ -239,7 +240,8 @@ namespace MediaBrowser.Providers.TV
                 Url = string.Format(UpdatesUrl, lastUpdateTime),
                 CancellationToken = cancellationToken,
                 EnableHttpCompression = true,
-                ResourcePool = TvdbSeriesProvider.Current.TvDbResourcePool
+                ResourcePool = TvdbSeriesProvider.Current.TvDbResourcePool,
+                BufferContent = false
 
             }).ConfigureAwait(false))
             {
@@ -274,7 +276,7 @@ namespace MediaBrowser.Providers.TV
                     reader.Read();
 
                     // Loop through each element
-                    while (!reader.EOF)
+                    while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                     {
                         if (reader.NodeType == XmlNodeType.Element)
                         {

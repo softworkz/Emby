@@ -205,7 +205,8 @@ namespace MediaBrowser.Api.Playback
             }
             else
             {
-                args += "-map -0:v";
+                // No known video stream
+                args += "-vn";
             }
 
             if (state.AudioStream != null)
@@ -395,8 +396,6 @@ namespace MediaBrowser.Api.Playback
                 {
                     param += " -crf 23";
                 }
-
-                param += " -tune zerolatency";
             }
 
             else if (string.Equals(videoEncoder, "libx265", StringComparison.OrdinalIgnoreCase))
@@ -534,6 +533,11 @@ namespace MediaBrowser.Api.Playback
                 {
                     param += " -level " + level;
                 }
+            }
+
+            if (string.Equals(videoEncoder, "libx264", StringComparison.OrdinalIgnoreCase))
+            {
+                param += " -x264opts:0 subme=0:rc_lookahead=10:me_range=4:me=dia:no_chroma_me:8x8dct=0:partitions=none";
             }
 
             if (!string.Equals(videoEncoder, "h264_omx", StringComparison.OrdinalIgnoreCase) &&
@@ -818,7 +822,7 @@ namespace MediaBrowser.Api.Playback
 
             if (state.VideoStream != null && state.VideoStream.Width.HasValue && state.VideoStream.Height.HasValue)
             {
-                videoSizeParam = string.Format(",scale={0}:{1}", state.VideoStream.Width.Value.ToString(UsCulture), state.VideoStream.Height.Value.ToString(UsCulture));
+                videoSizeParam = string.Format("scale={0}:{1}", state.VideoStream.Width.Value.ToString(UsCulture), state.VideoStream.Height.Value.ToString(UsCulture));
             }
 
             var mapPrefix = state.SubtitleStream.IsExternal ?
@@ -829,7 +833,7 @@ namespace MediaBrowser.Api.Playback
                 ? 0
                 : state.SubtitleStream.Index;
 
-            return string.Format(" -filter_complex \"[{0}:{1}]format=yuva444p{4},lut=u=128:v=128:y=gammaval(.3)[sub] ; [0:{2}] [sub] overlay{3}\"",
+            return string.Format(" -filter_complex \"[{0}:{1}]{4}[sub] ; [0:{2}] [sub] overlay{3}\"",
                 mapPrefix.ToString(UsCulture),
                 subtitleStreamIndex.ToString(UsCulture),
                 state.VideoStream.Index.ToString(UsCulture),
@@ -870,33 +874,47 @@ namespace MediaBrowser.Api.Playback
                 inputChannels = null;
             }
 
-            int? resultChannels = null;
+            int? transcoderChannelLimit = null;
             var codec = outputAudioCodec ?? string.Empty;
 
             if (codec.IndexOf("wma", StringComparison.OrdinalIgnoreCase) != -1)
             {
                 // wmav2 currently only supports two channel output
-                resultChannels = Math.Min(2, inputChannels ?? 2);
+                transcoderChannelLimit = 2;
             }
 
-            else if (request.MaxAudioChannels.HasValue)
+            else if (codec.IndexOf("mp3", StringComparison.OrdinalIgnoreCase) != -1)
             {
-                var channelLimit = codec.IndexOf("mp3", StringComparison.OrdinalIgnoreCase) != -1
-                   ? 2
-                   : 6;
-
-                if (inputChannels.HasValue)
-                {
-                    channelLimit = Math.Min(channelLimit, inputChannels.Value);
-                }
-
-                // If we don't have any media info then limit it to 5 to prevent encoding errors due to asking for too many channels
-                resultChannels = Math.Min(request.MaxAudioChannels.Value, channelLimit);
+                // libmp3lame currently only supports two channel output
+                transcoderChannelLimit = 2;
+            }
+            else
+            {
+                // If we don't have any media info then limit it to 6 to prevent encoding errors due to asking for too many channels
+                transcoderChannelLimit = 6;
             }
 
-            if (request.TranscodingMaxAudioChannels.HasValue && !string.Equals(codec, "copy", StringComparison.OrdinalIgnoreCase))
+            var isTranscodingAudio = !string.Equals(codec, "copy", StringComparison.OrdinalIgnoreCase);
+
+            int? resultChannels = null;
+            if (isTranscodingAudio)
             {
-                resultChannels = Math.Min(request.TranscodingMaxAudioChannels.Value, resultChannels ?? inputChannels ?? request.TranscodingMaxAudioChannels.Value);
+                resultChannels = request.TranscodingMaxAudioChannels;
+            }
+            resultChannels = resultChannels ?? request.MaxAudioChannels ?? request.AudioChannels;
+
+            if (inputChannels.HasValue)
+            {
+                resultChannels = resultChannels.HasValue
+                    ? Math.Min(resultChannels.Value, inputChannels.Value)
+                    : inputChannels.Value;
+            }
+
+            if (isTranscodingAudio && transcoderChannelLimit.HasValue)
+            {
+                resultChannels = resultChannels.HasValue
+                    ? Math.Min(resultChannels.Value, transcoderChannelLimit.Value)
+                    : transcoderChannelLimit.Value;
             }
 
             return resultChannels ?? request.AudioChannels;
@@ -1054,7 +1072,19 @@ namespace MediaBrowser.Api.Playback
 
                         arg += string.Format(" -canvas_size {0}:{1}", state.VideoStream.Width.Value.ToString(CultureInfo.InvariantCulture), Convert.ToInt32(height).ToString(CultureInfo.InvariantCulture));
                     }
-                    arg += " -i \"" + state.SubtitleStream.Path + "\"";
+
+                    var subtitlePath = state.SubtitleStream.Path;
+
+                    if (string.Equals(Path.GetExtension(subtitlePath), ".sub", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var idxFile = Path.ChangeExtension(subtitlePath, ".idx");
+                        if (FileSystem.FileExists(idxFile))
+                        {
+                            subtitlePath = idxFile;
+                        }
+                    }
+
+                    arg += " -i \"" + subtitlePath + "\"";
                 }
             }
 
@@ -1466,6 +1496,14 @@ namespace MediaBrowser.Api.Playback
                     return string.Format(" -b:v {0}", bitrate.Value.ToString(UsCulture));
                 }
 
+                if (string.Equals(videoCodec, "libx264", StringComparison.OrdinalIgnoreCase))
+                {
+                    // h264
+                    return string.Format(" -maxrate {0} -bufsize {1}",
+                        bitrate.Value.ToString(UsCulture),
+                        (bitrate.Value * 2).ToString(UsCulture));
+                }
+
                 // h264
                 return string.Format(" -b:v {0} -maxrate {0} -bufsize {1}",
                     bitrate.Value.ToString(UsCulture),
@@ -1756,13 +1794,6 @@ namespace MediaBrowser.Api.Playback
                 {
                     if (videoRequest != null)
                     {
-                        videoRequest.EnableSplittingOnNonKeyFrames = string.Equals("true", val, StringComparison.OrdinalIgnoreCase);
-                    }
-                }
-                else if (i == 30)
-                {
-                    if (videoRequest != null)
-                    {
                         videoRequest.RequireAvc = string.Equals("true", val, StringComparison.OrdinalIgnoreCase);
                     }
                 }
@@ -1854,7 +1885,7 @@ namespace MediaBrowser.Api.Playback
                 request.AudioCodec = InferAudioCodec(url);
             }
 
-            var state = new StreamState(MediaSourceManager, Logger)
+            var state = new StreamState(MediaSourceManager, Logger, TranscodingJobType)
             {
                 Request = request,
                 RequestedUrl = url,
@@ -1948,7 +1979,12 @@ namespace MediaBrowser.Api.Playback
                 state.OutputVideoCodec = state.VideoRequest.VideoCodec;
                 state.OutputVideoBitrate = GetVideoBitrateParamValue(state.VideoRequest, state.VideoStream, state.OutputVideoCodec);
 
-                if (state.OutputVideoBitrate.HasValue)
+                if (videoRequest != null)
+                {
+                    TryStreamCopy(state, videoRequest);
+                }
+
+                if (state.OutputVideoBitrate.HasValue && !string.Equals(state.OutputVideoCodec, "copy", StringComparison.OrdinalIgnoreCase))
                 {
                     var resolution = ResolutionNormalizer.Normalize(
                         state.VideoStream == null ? (int?)null : state.VideoStream.BitRate,
@@ -1961,13 +1997,12 @@ namespace MediaBrowser.Api.Playback
                     videoRequest.MaxWidth = resolution.MaxWidth;
                     videoRequest.MaxHeight = resolution.MaxHeight;
                 }
+
+                ApplyDeviceProfileSettings(state);
             }
-
-            ApplyDeviceProfileSettings(state);
-
-            if (videoRequest != null)
+            else
             {
-                TryStreamCopy(state, videoRequest);
+                ApplyDeviceProfileSettings(state);
             }
 
             state.OutputFilePath = GetOutputFilePath(state);
@@ -2096,7 +2131,7 @@ namespace MediaBrowser.Api.Playback
             state.MediaSource = mediaSource;
         }
 
-        protected virtual bool CanStreamCopyVideo(StreamState state)
+        protected bool CanStreamCopyVideo(StreamState state)
         {
             var request = state.VideoRequest;
             var videoStream = state.VideoStream;
@@ -2381,7 +2416,6 @@ namespace MediaBrowser.Api.Playback
                     {
                         state.VideoRequest.CopyTimestamps = transcodingProfile.CopyTimestamps;
                         state.VideoRequest.EnableSubtitlesInManifest = transcodingProfile.EnableSubtitlesInManifest;
-                        state.VideoRequest.EnableSplittingOnNonKeyFrames = transcodingProfile.EnableSplittingOnNonKeyFrames;
                     }
                 }
             }
@@ -2669,9 +2703,50 @@ namespace MediaBrowser.Api.Playback
                 {
                     //inputModifier += " -noaccurate_seek";
                 }
+
+                foreach (var stream in state.MediaSource.MediaStreams)
+                {
+                    if (!stream.IsExternal && stream.Type != MediaStreamType.Subtitle)
+                    {
+                        if (!string.IsNullOrWhiteSpace(stream.Codec) && stream.Index != -1)
+                        {
+                            var decoder = GetDecoderFromCodec(stream.Codec);
+
+                            if (!string.IsNullOrWhiteSpace(decoder))
+                            {
+                                inputModifier += " -codec:" + stream.Index.ToString(UsCulture) + " " + decoder;
+                            }
+                        }
+                    }
+                }
+                //var videoStream = state.VideoStream;
+                //if (videoStream != null && !string.IsNullOrWhiteSpace(videoStream.Codec))
+                //{
+                //    inputModifier += "  -codec:0 " + videoStream.Codec;
+
+                //    var audioStream = state.AudioStream;
+                //    if (audioStream != null && !string.IsNullOrWhiteSpace(audioStream.Codec))
+                //    {
+                //        inputModifier += "  -codec:1 " + audioStream.Codec;
+                //    }
+                //}
             }
 
             return inputModifier;
+        }
+
+        private string GetDecoderFromCodec(string codec)
+        {
+            if (string.Equals(codec, "mp2", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            if (string.Equals(codec, "aac_latm", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return codec;
         }
 
         /// <summary>

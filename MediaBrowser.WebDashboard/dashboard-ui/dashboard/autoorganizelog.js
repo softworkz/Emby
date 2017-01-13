@@ -254,7 +254,7 @@
 
         html += '<td data-title="Date">';
         var date = datetime.parseISO8601Date(item.Date, true);
-        html += date.toLocaleDateString();
+        html += datetime.toLocaleDateString(date);
         html += '</td>';
 
         html += '<td data-title="Source" class="fileCell">';
@@ -376,6 +376,7 @@
         clearButton.addEventListener('click', function () {
 
             ApiClient.clearOrganizationLog().then(function () {
+                query.StartIndex = 0;
                 reloadItems(view, true);
             }, Dashboard.processErrorResponse);
         });

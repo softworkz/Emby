@@ -59,15 +59,8 @@ namespace Emby.Server.Implementations.Sync
             _mediaSourceManager = mediaSourceManager;
         }
 
-        public async Task EnsureJobItems(SyncJob job)
+        public async Task EnsureJobItems(SyncJob job, User user)
         {
-            var user = _userManager.GetUserById(job.UserId);
-
-            if (user == null)
-            {
-                throw new InvalidOperationException("Cannot proceed with sync because user no longer exists.");
-            }
-
             var items = (await GetItemsForSync(job.Category, job.ParentId, job.RequestedItemIds, user, job.UnwatchedOnly).ConfigureAwait(false))
                 .ToList();
 
@@ -385,7 +378,16 @@ namespace Emby.Server.Implementations.Sync
 
                 if (job.SyncNewContent)
                 {
-                    await EnsureJobItems(job).ConfigureAwait(false);
+                    var user = _userManager.GetUserById(job.UserId);
+
+                    if (user == null)
+                    {
+                        await _syncManager.CancelJob(job.Id).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await EnsureJobItems(job, user).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -515,8 +517,14 @@ namespace Emby.Server.Implementations.Sync
 
             jobItem.Progress = 0;
 
-            var syncOptions = _config.GetSyncOptions();
             var job = _syncManager.GetJob(jobItem.JobId);
+            if (job == null)
+            {
+                _logger.Error("Job not found. Cannot complete the sync job.");
+                await _syncManager.CancelJobItem(jobItem.Id).ConfigureAwait(false);
+                return;
+            }
+
             var user = _userManager.GetUserById(job.UserId);
             if (user == null)
             {
@@ -551,6 +559,8 @@ namespace Emby.Server.Implementations.Sync
                     return;
                 }
             }
+
+            var syncOptions = _config.GetSyncOptions();
 
             var video = item as Video;
             if (video != null)

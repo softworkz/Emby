@@ -83,7 +83,6 @@ namespace MediaBrowser.Controller.Entities
         public bool? HasTrailer { get; set; }
         public bool? HasParentalRating { get; set; }
 
-        public string[] Studios { get; set; }
         public string[] StudioIds { get; set; }
         public string[] GenreIds { get; set; }
         public ImageType[] ImageTypes { get; set; }
@@ -123,9 +122,7 @@ namespace MediaBrowser.Controller.Entities
         public int? MinParentalRating { get; set; }
         public int? MaxParentalRating { get; set; }
 
-        public bool? IsCurrentSchema { get; set; }
         public bool? HasDeadParentId { get; set; }
-        public bool? IsOffline { get; set; }
         public bool? IsVirtualItem { get; set; }
 
         public Guid? ParentId { get; set; }
@@ -133,7 +130,6 @@ namespace MediaBrowser.Controller.Entities
         public string[] TopParentIds { get; set; }
 
         public LocationType[] LocationTypes { get; set; }
-        public LocationType[] ExcludeLocationTypes { get; set; }
         public string[] PresetViews { get; set; }
         public SourceType[] SourceTypes { get; set; }
         public SourceType[] ExcludeSourceTypes { get; set; }
@@ -143,11 +139,13 @@ namespace MediaBrowser.Controller.Entities
         public SeriesStatus[] SeriesStatuses { get; set; }
         public string AlbumArtistStartsWithOrGreater { get; set; }
         public string ExternalSeriesId { get; set; }
+        public string ExternalId { get; set; }
 
         public string[] AlbumNames { get; set; }
-        public string[] ArtistNames { get; set; }
+        public string[] ArtistIds { get; set; }
         public string[] ExcludeArtistIds { get; set; }
         public string AncestorWithPresentationUniqueKey { get; set; }
+        public string SeriesPresentationUniqueKey { get; set; }
 
         public bool GroupByPresentationUniqueKey { get; set; }
         public bool EnableTotalRecordCount { get; set; }
@@ -161,6 +159,7 @@ namespace MediaBrowser.Controller.Entities
         public DateTime? MinDateLastSaved { get; set; }
 
         public DtoOptions DtoOptions { get; set; }
+        public int MinSimilarityScore { get; set; }
 
         public bool HasField(ItemFields name)
         {
@@ -198,12 +197,14 @@ namespace MediaBrowser.Controller.Entities
 
         public InternalItemsQuery()
         {
+            MinSimilarityScore = 1;
+
             GroupByPresentationUniqueKey = true;
             EnableTotalRecordCount = true;
 
             DtoOptions = new DtoOptions();
             AlbumNames = new string[] { };
-            ArtistNames = new string[] { };
+            ArtistIds = new string[] { };
             ExcludeArtistIds = new string[] { };
             ExcludeProviderIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -216,7 +217,6 @@ namespace MediaBrowser.Controller.Entities
             IncludeItemTypes = new string[] { };
             ExcludeItemTypes = new string[] { };
             Genres = new string[] { };
-            Studios = new string[] { };
             StudioIds = new string[] { };
             GenreIds = new string[] { };
             ImageTypes = new ImageType[] { };
@@ -232,7 +232,6 @@ namespace MediaBrowser.Controller.Entities
             ExcludeTags = new string[] { };
             ExcludeInheritedTags = new string[] { };
             LocationTypes = new LocationType[] { };
-            ExcludeLocationTypes = new LocationType[] { };
             PresetViews = new string[] { };
             SourceTypes = new SourceType[] { };
             ExcludeSourceTypes = new SourceType[] { };

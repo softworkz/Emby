@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace MediaBrowser.Api.Playback
@@ -88,18 +89,22 @@ namespace MediaBrowser.Api.Playback
                         return 10;
                     }
 
-                    if (!RunTimeTicks.HasValue)
+                    if (IsSegmentedLiveStream)
                     {
                         return 3;
                     }
                     return 6;
                 }
 
-                if (!RunTimeTicks.HasValue)
-                {
-                    return 3;
-                }
                 return 3;
+            }
+        }
+
+        public bool IsSegmentedLiveStream
+        {
+            get
+            {
+                return TranscodingType != TranscodingJobType.Progressive && !RunTimeTicks.HasValue;
             }
         }
 
@@ -122,8 +127,9 @@ namespace MediaBrowser.Api.Playback
         public List<string> SupportedAudioCodecs { get; set; }
         public List<string> SupportedVideoCodecs { get; set; }
         public string UserAgent { get; set; }
+        public TranscodingJobType TranscodingType { get; set; }
 
-        public StreamState(IMediaSourceManager mediaSourceManager, ILogger logger)
+        public StreamState(IMediaSourceManager mediaSourceManager, ILogger logger, TranscodingJobType transcodingType)
         {
             _mediaSourceManager = mediaSourceManager;
             _logger = logger;
@@ -131,6 +137,7 @@ namespace MediaBrowser.Api.Playback
             SupportedVideoCodecs = new List<string>();
             PlayableStreamFileNames = new List<string>();
             RemoteHttpHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            TranscodingType = transcodingType;
         }
 
         public string InputAudioSync { get; set; }

@@ -100,7 +100,8 @@ namespace Emby.Server.Implementations.HttpServer
                 responseHeaders = new Dictionary<string, string>();
             }
 
-            if (addCachePrevention)
+            string expires;
+            if (addCachePrevention && !responseHeaders.TryGetValue("Expires", out expires))
             {
                 responseHeaders["Expires"] = "-1";
             }
@@ -202,20 +203,12 @@ namespace Emby.Server.Implementations.HttpServer
             // Do not use the memoryStreamFactory here, they don't place nice with compression
             using (var ms = new MemoryStream())
             {
-                using (var compressionStream = GetCompressionStream(ms, compressionType))
-                {
-                    ContentTypes.Instance.SerializeToStream(request, dto, compressionStream);
-                    compressionStream.Dispose();
+                ContentTypes.Instance.SerializeToStream(request, dto, ms);
+                ms.Position = 0;
 
-                    var compressedBytes = ms.ToArray();
+                var responseHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-                    var httpResult = new StreamWriter(compressedBytes, request.ResponseContentType, _logger);
-
-                    //httpResult.Headers["Content-Length"] = compressedBytes.Length.ToString(UsCulture);
-                    httpResult.Headers["Content-Encoding"] = compressionType;
-
-                    return httpResult;
-                }
+                return GetCompressedResult(ms, compressionType, responseHeaders, false, request.ResponseContentType).Result;
             }
         }
 
@@ -590,43 +583,51 @@ namespace Emby.Server.Implementations.HttpServer
                 };
             }
 
-            string content;
-
             using (var stream = await factoryFn().ConfigureAwait(false))
             {
-                using (var reader = new StreamReader(stream))
-                {
-                    content = await reader.ReadToEndAsync().ConfigureAwait(false);
-                }
+                return await GetCompressedResult(stream, requestedCompressionType, responseHeaders, isHeadRequest, contentType).ConfigureAwait(false);
             }
-
-            var contents = Compress(content, requestedCompressionType);
-
-            responseHeaders["Content-Length"] = contents.Length.ToString(UsCulture);
-            responseHeaders["Content-Encoding"] = requestedCompressionType;
-
-            if (isHeadRequest)
-            {
-                return GetHttpResult(new byte[] { }, contentType, true);
-            }
-
-            return GetHttpResult(contents, contentType, true, responseHeaders);
         }
 
-        private byte[] Compress(string text, string compressionType)
+        private async Task<IHasHeaders> GetCompressedResult(Stream stream, 
+            string requestedCompressionType, 
+            IDictionary<string,string> responseHeaders,
+            bool isHeadRequest,
+            string contentType)
+        {
+            using (var reader = new MemoryStream())
+            {
+                await stream.CopyToAsync(reader).ConfigureAwait(false);
+
+                reader.Position = 0;
+                var content = reader.ToArray();
+
+                if (content.Length >= 1024)
+                {
+                    content = Compress(content, requestedCompressionType);
+                    responseHeaders["Content-Encoding"] = requestedCompressionType;
+                }
+
+                responseHeaders["Content-Length"] = content.Length.ToString(UsCulture);
+
+                if (isHeadRequest)
+                {
+                    return GetHttpResult(new byte[] { }, contentType, true);
+                }
+
+                return GetHttpResult(content, contentType, true, responseHeaders);
+            }
+        }
+
+        private byte[] Compress(byte[] bytes, string compressionType)
         {
             if (compressionType == "deflate")
-                return Deflate(text);
+                return Deflate(bytes);
 
             if (compressionType == "gzip")
-                return GZip(text);
+                return GZip(bytes);
 
             throw new NotSupportedException(compressionType);
-        }
-
-        private byte[] Deflate(string text)
-        {
-            return Deflate(Encoding.UTF8.GetBytes(text));
         }
 
         private byte[] Deflate(byte[] bytes)
@@ -641,11 +642,6 @@ namespace Emby.Server.Implementations.HttpServer
 
                 return ms.ToArray();
             }
-        }
-
-        private byte[] GZip(string text)
-        {
-            return GZip(Encoding.UTF8.GetBytes(text));
         }
 
         private byte[] GZip(byte[] buffer)
@@ -734,7 +730,7 @@ namespace Emby.Server.Implementations.HttpServer
         /// <returns><c>true</c> if [is not modified] [the specified cache key]; otherwise, <c>false</c>.</returns>
         private bool IsNotModified(IRequest requestContext, Guid? cacheKey, DateTime? lastDateModified, TimeSpan? cacheDuration)
         {
-            var isNotModified = true;
+            //var isNotModified = true;
 
             var ifModifiedSinceHeader = requestContext.Headers.Get("If-Modified-Since");
 
@@ -744,18 +740,23 @@ namespace Emby.Server.Implementations.HttpServer
 
                 if (DateTime.TryParse(ifModifiedSinceHeader, out ifModifiedSince))
                 {
-                    isNotModified = IsNotModified(ifModifiedSince.ToUniversalTime(), cacheDuration, lastDateModified);
+                    if (IsNotModified(ifModifiedSince.ToUniversalTime(), cacheDuration, lastDateModified))
+                    {
+                        return true;
+                    }
                 }
             }
 
             var ifNoneMatchHeader = requestContext.Headers.Get("If-None-Match");
 
             // Validate If-None-Match
-            if (isNotModified && (cacheKey.HasValue || !string.IsNullOrEmpty(ifNoneMatchHeader)))
+            if ((cacheKey.HasValue || !string.IsNullOrEmpty(ifNoneMatchHeader)))
             {
                 Guid ifNoneMatch;
 
-                if (Guid.TryParse(ifNoneMatchHeader ?? string.Empty, out ifNoneMatch))
+                ifNoneMatchHeader = (ifNoneMatchHeader ?? string.Empty).Trim('\"');
+
+                if (Guid.TryParse(ifNoneMatchHeader, out ifNoneMatch))
                 {
                     if (cacheKey.HasValue && cacheKey.Value == ifNoneMatch)
                     {

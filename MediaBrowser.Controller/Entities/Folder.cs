@@ -86,6 +86,15 @@ namespace MediaBrowser.Controller.Entities
         }
 
         [IgnoreDataMember]
+        public override bool IsDisplayedAsFolder
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        [IgnoreDataMember]
         public virtual bool SupportsCumulativeRunTimeTicks
         {
             get
@@ -101,6 +110,16 @@ namespace MediaBrowser.Controller.Entities
             {
                 return false;
             }
+        }
+
+        public override bool CanDelete()
+        {
+            if (IsRoot)
+            {
+                return false;
+            }
+
+            return base.CanDelete();
         }
 
         public override bool RequiresRefresh()
@@ -350,6 +369,11 @@ namespace MediaBrowser.Controller.Entities
 
             var validChildren = new List<BaseItem>();
 
+            var allLibraryPaths = LibraryManager
+              .GetVirtualFolders()
+              .SelectMany(i => i.Locations)
+              .ToList();
+
             if (locationType != LocationType.Remote && locationType != LocationType.Virtual)
             {
                 IEnumerable<BaseItem> nonCachedChildren;
@@ -383,7 +407,6 @@ namespace MediaBrowser.Controller.Entities
 
                     if (currentChildren.TryGetValue(child.Id, out currentChild) && IsValidFromResolver(currentChild, child))
                     {
-                        await currentChild.UpdateIsOffline(false).ConfigureAwait(false);
                         validChildren.Add(currentChild);
 
                         continue;
@@ -410,9 +433,8 @@ namespace MediaBrowser.Controller.Entities
                         {
                         }
 
-                        else if (!string.IsNullOrEmpty(item.Path) && IsPathOffline(item.Path))
+                        else if (!string.IsNullOrEmpty(item.Path) && IsPathOffline(item.Path, allLibraryPaths))
                         {
-                            await item.UpdateIsOffline(true).ConfigureAwait(false);
                         }
                         else
                         {
@@ -427,7 +449,6 @@ namespace MediaBrowser.Controller.Entities
                             Logger.Debug("Removed item: " + item.Path);
 
                             item.SetParent(null);
-                            item.IsOffline = false;
                             await LibraryManager.DeleteItem(item, new DeleteOptions { DeleteFileLocation = false }).ConfigureAwait(false);
                             LibraryManager.ReportItemRemoved(item);
                         }
@@ -593,6 +614,11 @@ namespace MediaBrowser.Controller.Entities
         /// <returns><c>true</c> if the specified path is offline; otherwise, <c>false</c>.</returns>
         public static bool IsPathOffline(string path)
         {
+            return IsPathOffline(path, LibraryManager.GetVirtualFolders().SelectMany(i => i.Locations).ToList());
+        }
+
+        public static bool IsPathOffline(string path, List<string> allLibraryPaths)
+        {
             if (FileSystem.FileExists(path))
             {
                 return false;
@@ -608,31 +634,20 @@ namespace MediaBrowser.Controller.Entities
                     return false;
                 }
 
+                if (allLibraryPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
                 path = System.IO.Path.GetDirectoryName(path);
             }
 
-            if (ContainsPath(LibraryManager.GetVirtualFolders(), originalPath))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Determines whether the specified folders contains path.
-        /// </summary>
-        /// <param name="folders">The folders.</param>
-        /// <param name="path">The path.</param>
-        /// <returns><c>true</c> if the specified folders contains path; otherwise, <c>false</c>.</returns>
-        private static bool ContainsPath(IEnumerable<VirtualFolderInfo> folders, string path)
-        {
-            return folders.SelectMany(i => i.Locations).Any(i => ContainsPath(i, path));
+            return allLibraryPaths.Any(i => ContainsPath(i, originalPath));
         }
 
         private static bool ContainsPath(string parent, string path)
         {
-            return string.Equals(parent, path, StringComparison.OrdinalIgnoreCase) || FileSystem.ContainsSubPath(parent, path);
+            return FileSystem.AreEqual(parent, path) || FileSystem.ContainsSubPath(parent, path);
         }
 
         /// <summary>
@@ -679,6 +694,19 @@ namespace MediaBrowser.Controller.Entities
             }).Result;
 
             return result.TotalRecordCount;
+        }
+
+        public virtual int GetRecursiveChildCount(User user)
+        {
+            return GetItems(new InternalItemsQuery(user)
+            {
+                Recursive = true,
+                IsFolder = false,
+                IsVirtualItem = false,
+                EnableTotalRecordCount = true,
+                Limit = 0
+
+            }).Result.TotalRecordCount;
         }
 
         public QueryResult<BaseItem> QueryRecursive(InternalItemsQuery query)
@@ -1209,7 +1237,7 @@ namespace MediaBrowser.Controller.Entities
         /// Refreshes the linked children.
         /// </summary>
         /// <returns><c>true</c> if XXXX, <c>false</c> otherwise</returns>
-        private bool RefreshLinkedChildren(IEnumerable<FileSystemMetadata> fileSystemChildren)
+        protected virtual bool RefreshLinkedChildren(IEnumerable<FileSystemMetadata> fileSystemChildren)
         {
             var currentManualLinks = LinkedChildren.Where(i => i.Type == LinkedChildType.Manual).ToList();
             var currentShortcutLinks = LinkedChildren.Where(i => i.Type == LinkedChildType.Shortcut).ToList();
@@ -1304,7 +1332,7 @@ namespace MediaBrowser.Controller.Entities
 
             if (!user.Configuration.DisplayMissingEpisodes || !user.Configuration.DisplayUnairedEpisodes)
             {
-                query.ExcludeLocationTypes = new[] { LocationType.Virtual };
+                query.IsVirtualItem = false;
             }
 
             var itemsResult = await GetItems(query).ConfigureAwait(false);
@@ -1343,7 +1371,7 @@ namespace MediaBrowser.Controller.Entities
             {
                 Recursive = true,
                 IsFolder = false,
-                ExcludeLocationTypes = new[] { LocationType.Virtual },
+                IsVirtualItem = false,
                 EnableTotalRecordCount = false
 
             }).Result;
@@ -1383,60 +1411,64 @@ namespace MediaBrowser.Controller.Entities
                 {
                     return false;
                 }
+                var iItemByName = this as IItemByName;
+                if (iItemByName != null)
+                {
+                    var hasDualAccess = this as IHasDualAccess;
+                    if (hasDualAccess == null || hasDualAccess.IsAccessedByName)
+                    {
+                        return false;
+                    }
+                }
 
                 return true;
             }
         }
 
-        public override async Task FillUserDataDtoValues(UserItemDataDto dto, UserItemData userData, BaseItemDto itemDto, User user)
+        public override async Task FillUserDataDtoValues(UserItemDataDto dto, UserItemData userData, BaseItemDto itemDto, User user, List<ItemFields> itemFields)
         {
             if (!SupportsUserDataFromChildren)
             {
                 return;
             }
 
-            var unplayedQueryResult = await GetItems(new InternalItemsQuery(user)
-            {
-                Recursive = true,
-                IsFolder = false,
-                IsVirtualItem = false,
-                EnableTotalRecordCount = true,
-                Limit = 0,
-                IsPlayed = false
-
-            }).ConfigureAwait(false);
-
-            var allItemsQueryResult = await GetItems(new InternalItemsQuery(user)
-            {
-                Recursive = true,
-                IsFolder = false,
-                IsVirtualItem = false,
-                EnableTotalRecordCount = true,
-                Limit = 0
-
-            }).ConfigureAwait(false);
-
             if (itemDto != null)
             {
-                itemDto.RecursiveItemCount = allItemsQueryResult.TotalRecordCount;
-            }
-
-            var recursiveItemCount = allItemsQueryResult.TotalRecordCount;
-            double unplayedCount = unplayedQueryResult.TotalRecordCount;
-
-            if (recursiveItemCount > 0)
-            {
-                var unplayedPercentage = (unplayedCount / recursiveItemCount) * 100;
-                dto.PlayedPercentage = 100 - unplayedPercentage;
-                dto.Played = dto.PlayedPercentage.Value >= 100;
-                dto.UnplayedItemCount = unplayedQueryResult.TotalRecordCount;
-            }
-
-            if (itemDto != null)
-            {
-                if (this is Season || this is MusicAlbum)
+                if (itemFields.Contains(ItemFields.RecursiveItemCount))
                 {
-                    itemDto.ChildCount = recursiveItemCount;
+                    itemDto.RecursiveItemCount = GetRecursiveChildCount(user);
+                }
+            }
+
+            if (SupportsPlayedStatus)
+            {
+                var unplayedQueryResult = await GetItems(new InternalItemsQuery(user)
+                {
+                    Recursive = true,
+                    IsFolder = false,
+                    IsVirtualItem = false,
+                    EnableTotalRecordCount = true,
+                    Limit = 0,
+                    IsPlayed = false
+
+                }).ConfigureAwait(false);
+
+                double unplayedCount = unplayedQueryResult.TotalRecordCount;
+
+                dto.UnplayedItemCount = unplayedQueryResult.TotalRecordCount;
+
+                if (itemDto != null && itemDto.RecursiveItemCount.HasValue)
+                {
+                    if (itemDto.RecursiveItemCount.Value > 0)
+                    {
+                        var unplayedPercentage = (unplayedCount/itemDto.RecursiveItemCount.Value)*100;
+                        dto.PlayedPercentage = 100 - unplayedPercentage;
+                        dto.Played = dto.PlayedPercentage.Value >= 100;
+                    }
+                }
+                else
+                {
+                    dto.Played = (dto.UnplayedItemCount ?? 0) == 0;
                 }
             }
         }

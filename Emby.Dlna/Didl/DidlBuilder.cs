@@ -61,7 +61,7 @@ namespace Emby.Dlna.Didl
             _user = user;
         }
 
-        public string GetItemDidl(DlnaOptions options, BaseItem item, BaseItem context, string deviceId, Filter filter, StreamInfo streamInfo)
+        public string GetItemDidl(DlnaOptions options, BaseItem item, User user, BaseItem context, string deviceId, Filter filter, StreamInfo streamInfo)
         {
             var settings = new XmlWriterSettings
             {
@@ -86,7 +86,7 @@ namespace Emby.Dlna.Didl
 
                 WriteXmlRootAttributes(_profile, writer);
 
-                WriteItemElement(options, writer, item, context, null, deviceId, filter, streamInfo);
+                WriteItemElement(options, writer, item, user, context, null, deviceId, filter, streamInfo);
 
                 writer.WriteFullEndElement();
                 //writer.WriteEndDocument();
@@ -111,7 +111,15 @@ namespace Emby.Dlna.Didl
             }
         }
 
-        public void WriteItemElement(DlnaOptions options, XmlWriter writer, BaseItem item, BaseItem context, StubType? contextStubType, string deviceId, Filter filter, StreamInfo streamInfo = null)
+        public void WriteItemElement(DlnaOptions options, 
+            XmlWriter writer, 
+            BaseItem item, 
+            User user,
+            BaseItem context, 
+            StubType? contextStubType, 
+            string deviceId, 
+            Filter filter, 
+            StreamInfo streamInfo = null)
         {
             var clientId = GetClientId(item, null);
 
@@ -135,7 +143,7 @@ namespace Emby.Dlna.Didl
 
             AddGeneralProperties(item, null, context, writer, filter);
 
-            //AddBookmarkInfo(item, user, element);
+            AddSamsungBookmarkInfo(item, user, writer);
 
             // refID?
             // storeAttribute(itemNode, object, ClassProperties.REF_ID, false);
@@ -166,6 +174,18 @@ namespace Emby.Dlna.Didl
             }
 
             return new NullLogger();
+        }
+
+        private string GetMimeType(string input)
+        {
+            var mime = MimeTypes.GetMimeType(input);
+
+            if (string.Equals(mime, "video/mp2t", StringComparison.OrdinalIgnoreCase))
+            {
+                mime = "video/mpeg";
+            }
+
+            return mime;
         }
 
         private void AddVideoResource(DlnaOptions options, XmlWriter writer, IHasMediaSources video, string deviceId, Filter filter, StreamInfo streamInfo = null)
@@ -214,16 +234,17 @@ namespace Emby.Dlna.Didl
                 AddVideoResource(writer, video, deviceId, filter, contentFeature, streamInfo);
             }
 
-            foreach (var subtitle in streamInfo.GetSubtitleProfiles(false, _serverAddress, _accessToken))
-            {
-                if (subtitle.DeliveryMethod == SubtitleDeliveryMethod.External)
-                {
-                    var subtitleAdded = AddSubtitleElement(writer, subtitle);
+            var subtitleProfiles = streamInfo.GetSubtitleProfiles(false, _serverAddress, _accessToken)
+                .Where(subtitle => subtitle.DeliveryMethod == SubtitleDeliveryMethod.External)
+                .ToList();
 
-                    if (subtitleAdded && _profile.EnableSingleSubtitleLimit)
-                    {
-                        break;
-                    }
+            foreach (var subtitle in subtitleProfiles)
+            {
+                var subtitleAdded = AddSubtitleElement(writer, subtitle);
+
+                if (subtitleAdded && _profile.EnableSingleSubtitleLimit)
+                {
+                    break;
                 }
             }
         }
@@ -351,7 +372,7 @@ namespace Emby.Dlna.Didl
             var filename = url.Substring(0, url.IndexOf('?'));
 
             var mimeType = mediaProfile == null || string.IsNullOrEmpty(mediaProfile.MimeType)
-               ? MimeTypes.GetMimeType(filename)
+               ? GetMimeType(filename)
                : mediaProfile.MimeType;
 
             writer.WriteAttributeString("protocolInfo", String.Format(
@@ -472,7 +493,7 @@ namespace Emby.Dlna.Didl
             var filename = url.Substring(0, url.IndexOf('?'));
 
             var mimeType = mediaProfile == null || string.IsNullOrEmpty(mediaProfile.MimeType)
-                ? MimeTypes.GetMimeType(filename)
+                ? GetMimeType(filename)
                 : mediaProfile.MimeType;
 
             var contentFeatures = new ContentFeatureBuilder(_profile).BuildAudioHeader(streamInfo.Container,
@@ -554,17 +575,37 @@ namespace Emby.Dlna.Didl
             writer.WriteFullEndElement();
         }
 
-        //private void AddBookmarkInfo(BaseItem item, User user, XmlElement element)
-        //{
-        //    var userdata = _userDataManager.GetUserData(user.Id, item.GetUserDataKey());
+        private void AddSamsungBookmarkInfo(BaseItem item, User user, XmlWriter writer)
+        {
+            if (!item.SupportsPositionTicksResume || item is Folder)
+            {
+                return;
+            }
 
-        //    if (userdata.PlaybackPositionTicks > 0)
-        //    {
-        //        var dcmInfo = element.OwnerDocument.CreateElement("sec", "dcmInfo", NS_SEC);
-        //        dcmInfo.InnerText = string.Format("BM={0}", Convert.ToInt32(TimeSpan.FromTicks(userdata.PlaybackPositionTicks).TotalSeconds).ToString(_usCulture));
-        //        element.AppendChild(dcmInfo);
-        //    }
-        //}
+            XmlAttribute secAttribute = null;
+            foreach (var attribute in _profile.XmlRootAttributes)
+            {
+                if (string.Equals(attribute.Name, "xmlns:sec", StringComparison.OrdinalIgnoreCase))
+                {
+                    secAttribute = attribute;
+                    break;
+                }
+            }
+
+            // Not a samsung device
+            if (secAttribute == null)
+            {
+                return;
+            }
+
+            var userdata = _userDataManager.GetUserData(user.Id, item);
+
+            if (userdata.PlaybackPositionTicks > 0)
+            {
+                var elementValue = string.Format("BM={0}", Convert.ToInt32(TimeSpan.FromTicks(userdata.PlaybackPositionTicks).TotalSeconds).ToString(_usCulture));
+                AddValue(writer, "sec", "dcmInfo", elementValue, secAttribute.Value);
+            }
+        }
 
         /// <summary>
         /// Adds fields used by both items and folders
@@ -645,7 +686,7 @@ namespace Emby.Dlna.Didl
 
             writer.WriteStartElement("upnp", "class", NS_UPNP);
 
-            if (item.IsFolder || stubType.HasValue)
+            if (item.IsDisplayedAsFolder || stubType.HasValue)
             {
                 string classType = null;
 
@@ -731,7 +772,7 @@ namespace Emby.Dlna.Didl
 
             // Seeing some LG models locking up due content with large lists of people
             // The actual issue might just be due to processing a more metadata than it can handle
-            var limit = 10;
+            var limit = 6;
 
             foreach (var actor in people)
             {
@@ -978,7 +1019,7 @@ namespace Emby.Dlna.Didl
 
             writer.WriteAttributeString("protocolInfo", String.Format(
                 "http-get:*:{0}:{1}",
-                MimeTypes.GetMimeType("file." + format),
+                GetMimeType("file." + format),
                 contentFeatures
                 ));
 

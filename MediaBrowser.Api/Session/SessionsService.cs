@@ -237,14 +237,13 @@ namespace MediaBrowser.Api.Session
         [ApiMember(Name = "SupportsMediaControl", Description = "Determines whether media can be played remotely.", IsRequired = false, DataType = "bool", ParameterType = "query", Verb = "POST")]
         public bool SupportsMediaControl { get; set; }
 
-        [ApiMember(Name = "SupportsContentUploading", Description = "Determines whether camera upload is supported.", IsRequired = false, DataType = "bool", ParameterType = "query", Verb = "POST")]
-        public bool SupportsContentUploading { get; set; }
-
         [ApiMember(Name = "SupportsSync", Description = "Determines whether sync is supported.", IsRequired = false, DataType = "bool", ParameterType = "query", Verb = "POST")]
         public bool SupportsSync { get; set; }
 
         [ApiMember(Name = "SupportsPersistentIdentifier", Description = "Determines whether the device supports a unique identifier.", IsRequired = false, DataType = "bool", ParameterType = "query", Verb = "POST")]
         public bool SupportsPersistentIdentifier { get; set; }
+
+        public bool SupportsContentUploading { get; set; }
 
         public PostCapabilities()
         {
@@ -560,9 +559,9 @@ namespace MediaBrowser.Api.Session
 
                 MessageCallbackUrl = request.MessageCallbackUrl,
 
-                SupportsContentUploading = request.SupportsContentUploading,
-
                 SupportsSync = request.SupportsSync,
+
+                SupportsContentUploading = request.SupportsContentUploading,
 
                 SupportsPersistentIdentifier = request.SupportsPersistentIdentifier
             });

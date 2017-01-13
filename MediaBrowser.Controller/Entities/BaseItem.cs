@@ -30,6 +30,7 @@ using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.LiveTv;
 using MediaBrowser.Model.Providers;
+using MediaBrowser.Model.Querying;
 using MediaBrowser.Model.Serialization;
 
 namespace MediaBrowser.Controller.Entities
@@ -52,6 +53,7 @@ namespace MediaBrowser.Controller.Entities
             ImageInfos = new List<ItemImageInfo>();
             InheritedTags = new List<string>();
             ProductionLocations = new List<string>();
+            SourceType = SourceType.Library;
         }
 
         public static readonly char[] SlugReplaceChars = { '?', '/', '&' };
@@ -135,6 +137,15 @@ namespace MediaBrowser.Controller.Entities
 
         [IgnoreDataMember]
         public virtual bool SupportsPlayedStatus
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        [IgnoreDataMember]
+        public virtual bool SupportsPositionTicksResume
         {
             get
             {
@@ -262,9 +273,6 @@ namespace MediaBrowser.Controller.Entities
         public virtual string Path { get; set; }
 
         [IgnoreDataMember]
-        public bool IsOffline { get; set; }
-
-        [IgnoreDataMember]
         public virtual SourceType SourceType { get; set; }
 
         /// <summary>
@@ -326,20 +334,6 @@ namespace MediaBrowser.Controller.Entities
                 // An item that belongs to another item but is not part of the Parent-Child tree
                 return !IsFolder && ParentId == Guid.Empty && LocationType == LocationType.FileSystem;
             }
-        }
-
-        public Task UpdateIsOffline(bool newValue)
-        {
-            var item = this;
-
-            if (item.IsOffline != newValue)
-            {
-                item.IsOffline = newValue;
-                // this is creating too many repeated db updates
-                //return item.UpdateToRepository(ItemUpdateType.None, CancellationToken.None);
-            }
-
-            return Task.FromResult(true);
         }
 
         /// <summary>
@@ -1569,6 +1563,12 @@ namespace MediaBrowser.Controller.Entities
             return IsVisibleStandaloneInternal(user, true);
         }
 
+        [IgnoreDataMember]
+        public virtual bool SupportsInheritedParentImages
+        {
+            get { return false; }
+        }
+
         protected bool IsVisibleStandaloneInternal(User user, bool checkFolders)
         {
             if (!IsVisible(user))
@@ -1608,6 +1608,15 @@ namespace MediaBrowser.Controller.Entities
         /// <value><c>true</c> if this instance is folder; otherwise, <c>false</c>.</value>
         [IgnoreDataMember]
         public virtual bool IsFolder
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        [IgnoreDataMember]
+        public virtual bool IsDisplayedAsFolder
         {
             get
             {
@@ -2176,7 +2185,7 @@ namespace MediaBrowser.Controller.Entities
             return path;
         }
 
-        public virtual Task FillUserDataDtoValues(UserItemDataDto dto, UserItemData userData, BaseItemDto itemDto, User user)
+        public virtual Task FillUserDataDtoValues(UserItemDataDto dto, UserItemData userData, BaseItemDto itemDto, User user, List<ItemFields> itemFields)
         {
             if (RunTimeTicks.HasValue)
             {
@@ -2329,17 +2338,25 @@ namespace MediaBrowser.Controller.Entities
         {
             get
             {
-                if (GetParent() is AggregateFolder || this is BasePluginFolder || this is Channel)
+                if (this is BasePluginFolder || this is Channel)
                 {
                     return true;
                 }
 
                 var view = this as UserView;
-                if (view != null && string.Equals(view.ViewType, CollectionType.LiveTv, StringComparison.OrdinalIgnoreCase))
+                if (view != null)
                 {
-                    return true;
+                    if (string.Equals(view.ViewType, CollectionType.LiveTv, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                    if (string.Equals(view.ViewType, CollectionType.Channels, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
                 }
-                if (view != null && string.Equals(view.ViewType, CollectionType.Channels, StringComparison.OrdinalIgnoreCase))
+
+                if (GetParent() is AggregateFolder)
                 {
                     return true;
                 }

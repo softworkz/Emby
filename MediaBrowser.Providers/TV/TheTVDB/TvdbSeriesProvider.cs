@@ -237,7 +237,8 @@ namespace MediaBrowser.Providers.TV
             {
                 Url = url,
                 ResourcePool = TvDbResourcePool,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                BufferContent = false
 
             }).ConfigureAwait(false))
             {
@@ -281,7 +282,8 @@ namespace MediaBrowser.Providers.TV
             {
                 Url = url,
                 ResourcePool = TvDbResourcePool,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                BufferContent = false
 
             }).ConfigureAwait(false))
             {
@@ -303,9 +305,10 @@ namespace MediaBrowser.Providers.TV
                 using (var reader = XmlReader.Create(streamReader, settings))
                 {
                     reader.MoveToContent();
+                    reader.Read();
 
                     // Loop through each element
-                    while (reader.Read())
+                    while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                     {
                         if (reader.NodeType == XmlNodeType.Element)
                         {
@@ -313,6 +316,11 @@ namespace MediaBrowser.Providers.TV
                             {
                                 case "Series":
                                     {
+                                        if (reader.IsEmptyElement)
+                                        {
+                                            reader.Read();
+                                            continue;
+                                        }
                                         using (var subtree = reader.ReadSubtree())
                                         {
                                             return FindSeriesId(subtree);
@@ -323,6 +331,10 @@ namespace MediaBrowser.Providers.TV
                                     reader.Skip();
                                     break;
                             }
+                        }
+                        else
+                        {
+                            reader.Read();
                         }
                     }
                 }
@@ -337,7 +349,7 @@ namespace MediaBrowser.Providers.TV
             reader.Read();
 
             // Loop through each element
-            while (!reader.EOF)
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
@@ -372,7 +384,7 @@ namespace MediaBrowser.Providers.TV
         internal static bool IsValidSeries(Dictionary<string, string> seriesProviderIds)
         {
             string id;
-            if (seriesProviderIds.TryGetValue(MetadataProviders.Tvdb.ToString(), out id) && !string.IsNullOrEmpty(id))
+            if (seriesProviderIds.TryGetValue(MetadataProviders.Tvdb.ToString(), out id))
             {
                 // This check should ideally never be necessary but we're seeing some cases of this and haven't tracked them down yet.
                 if (!string.IsNullOrWhiteSpace(id))
@@ -381,7 +393,7 @@ namespace MediaBrowser.Providers.TV
                 }
             }
 
-            if (seriesProviderIds.TryGetValue(MetadataProviders.Imdb.ToString(), out id) && !string.IsNullOrEmpty(id))
+            if (seriesProviderIds.TryGetValue(MetadataProviders.Imdb.ToString(), out id))
             {
                 // This check should ideally never be necessary but we're seeing some cases of this and haven't tracked them down yet.
                 if (!string.IsNullOrWhiteSpace(id))
@@ -400,7 +412,7 @@ namespace MediaBrowser.Providers.TV
             try
             {
                 string seriesId;
-                if (seriesProviderIds.TryGetValue(MetadataProviders.Tvdb.ToString(), out seriesId) && !string.IsNullOrEmpty(seriesId))
+                if (seriesProviderIds.TryGetValue(MetadataProviders.Tvdb.ToString(), out seriesId) && !string.IsNullOrWhiteSpace(seriesId))
                 {
                     var seriesDataPath = GetSeriesDataPath(_config.ApplicationPaths, seriesProviderIds);
 
@@ -414,7 +426,7 @@ namespace MediaBrowser.Providers.TV
                     return seriesDataPath;
                 }
 
-                if (seriesProviderIds.TryGetValue(MetadataProviders.Imdb.ToString(), out seriesId) && !string.IsNullOrEmpty(seriesId))
+                if (seriesProviderIds.TryGetValue(MetadataProviders.Imdb.ToString(), out seriesId) && !string.IsNullOrWhiteSpace(seriesId))
                 {
                     var seriesDataPath = GetSeriesDataPath(_config.ApplicationPaths, seriesProviderIds);
 
@@ -525,7 +537,8 @@ namespace MediaBrowser.Providers.TV
             {
                 Url = url,
                 ResourcePool = TvDbResourcePool,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                BufferContent = false
 
             }).ConfigureAwait(false))
             {
@@ -541,9 +554,10 @@ namespace MediaBrowser.Providers.TV
                     using (var reader = XmlReader.Create(streamReader, settings))
                     {
                         reader.MoveToContent();
+                        reader.Read();
 
                         // Loop through each element
-                        while (reader.Read())
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
@@ -553,6 +567,11 @@ namespace MediaBrowser.Providers.TV
                                 {
                                     case "Series":
                                         {
+                                            if (reader.IsEmptyElement)
+                                            {
+                                                reader.Read();
+                                                continue;
+                                            }
                                             using (var subtree = reader.ReadSubtree())
                                             {
                                                 var searchResult = GetSeriesSearchResultFromSubTree(subtree, comparableName);
@@ -569,6 +588,10 @@ namespace MediaBrowser.Providers.TV
                                         reader.Skip();
                                         break;
                                 }
+                            }
+                            else
+                            {
+                                reader.Read();
                             }
                         }
                     }
@@ -594,8 +617,10 @@ namespace MediaBrowser.Providers.TV
             string seriesId = null;
 
             reader.MoveToContent();
+            reader.Read();
 
-            while (reader.Read())
+            // Loop through each element
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
@@ -616,7 +641,7 @@ namespace MediaBrowser.Providers.TV
                             {
                                 var val = reader.ReadElementContentAsString();
 
-                                var alias = (val ?? string.Empty).Split(new [] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(GetComparableName);
+                                var alias = (val ?? string.Empty).Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries).Select(GetComparableName);
                                 titles.AddRange(alias);
                                 break;
                             }
@@ -674,6 +699,10 @@ namespace MediaBrowser.Providers.TV
                             reader.Skip();
                             break;
                     }
+                }
+                else
+                {
+                    reader.Read();
                 }
             }
 
@@ -770,9 +799,10 @@ namespace MediaBrowser.Providers.TV
                     using (var reader = XmlReader.Create(streamReader, settings))
                     {
                         reader.MoveToContent();
+                        reader.Read();
 
                         // Loop through each element
-                        while (reader.Read())
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
@@ -782,6 +812,11 @@ namespace MediaBrowser.Providers.TV
                                 {
                                     case "Series":
                                         {
+                                            if (reader.IsEmptyElement)
+                                            {
+                                                reader.Read();
+                                                continue;
+                                            }
                                             using (var subtree = reader.ReadSubtree())
                                             {
                                                 FetchDataFromSeriesNode(result, subtree, cancellationToken);
@@ -791,6 +826,11 @@ namespace MediaBrowser.Providers.TV
 
                                     case "Episode":
                                         {
+                                            if (reader.IsEmptyElement)
+                                            {
+                                                reader.Read();
+                                                continue;
+                                            }
                                             using (var subtree = reader.ReadSubtree())
                                             {
                                                 var date = GetFirstAiredDateFromEpisodeNode(subtree, cancellationToken);
@@ -807,6 +847,10 @@ namespace MediaBrowser.Providers.TV
                                         reader.Skip();
                                         break;
                                 }
+                            }
+                            else
+                            {
+                                reader.Read();
                             }
                         }
                     }
@@ -825,9 +869,10 @@ namespace MediaBrowser.Providers.TV
             int? seasonNumber = null;
 
             reader.MoveToContent();
+            reader.Read();
 
             // Loop through each element
-            while (reader.Read())
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -874,6 +919,10 @@ namespace MediaBrowser.Providers.TV
                             break;
                     }
                 }
+                else
+                {
+                    reader.Read();
+                }
             }
 
             if (seasonNumber.HasValue && seasonNumber.Value != 0)
@@ -905,9 +954,10 @@ namespace MediaBrowser.Providers.TV
                     using (var reader = XmlReader.Create(streamReader, settings))
                     {
                         reader.MoveToContent();
+                        reader.Read();
 
                         // Loop through each element
-                        while (reader.Read())
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             if (reader.NodeType == XmlNodeType.Element)
                             {
@@ -915,6 +965,11 @@ namespace MediaBrowser.Providers.TV
                                 {
                                     case "Actor":
                                         {
+                                            if (reader.IsEmptyElement)
+                                            {
+                                                reader.Read();
+                                                continue;
+                                            }
                                             using (var subtree = reader.ReadSubtree())
                                             {
                                                 FetchDataFromActorNode(result, subtree);
@@ -925,6 +980,10 @@ namespace MediaBrowser.Providers.TV
                                         reader.Skip();
                                         break;
                                 }
+                            }
+                            else
+                            {
+                                reader.Read();
                             }
                         }
                     }
@@ -943,7 +1002,11 @@ namespace MediaBrowser.Providers.TV
 
             var personInfo = new PersonInfo();
 
-            while (reader.Read())
+            reader.MoveToContent();
+            reader.Read();
+
+            // Loop through each element
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 if (reader.NodeType == XmlNodeType.Element)
                 {
@@ -963,6 +1026,7 @@ namespace MediaBrowser.Providers.TV
 
                         case "id":
                             {
+                                reader.Skip();
                                 break;
                             }
 
@@ -998,6 +1062,10 @@ namespace MediaBrowser.Providers.TV
                             break;
                     }
                 }
+                else
+                {
+                    reader.Read();
+                }
             }
 
             personInfo.Type = PersonType.Actor;
@@ -1013,9 +1081,10 @@ namespace MediaBrowser.Providers.TV
             Series item = result.Item;
 
             reader.MoveToContent();
+            reader.Read();
 
             // Loop through each element
-            while (reader.Read())
+            while (!reader.EOF && reader.ReadState == ReadState.Interactive)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -1241,6 +1310,10 @@ namespace MediaBrowser.Providers.TV
                             break;
                     }
                 }
+                else
+                {
+                    reader.Read();
+                }
             }
         }
 
@@ -1267,9 +1340,10 @@ namespace MediaBrowser.Providers.TV
                     using (var reader = XmlReader.Create(streamReader, settings))
                     {
                         reader.MoveToContent();
+                        reader.Read();
 
                         // Loop through each element
-                        while (reader.Read())
+                        while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                         {
                             if (reader.NodeType == XmlNodeType.Element)
                             {
@@ -1287,6 +1361,10 @@ namespace MediaBrowser.Providers.TV
                                         reader.Skip();
                                         break;
                                 }
+                            }
+                            else
+                            {
+                                reader.Read();
                             }
                         }
                     }
@@ -1313,9 +1391,10 @@ namespace MediaBrowser.Providers.TV
                 using (var reader = XmlReader.Create(streamReader, settings))
                 {
                     reader.MoveToContent();
+                    reader.Read();
 
                     // Loop through each element
-                    while (reader.Read())
+                    while (!reader.EOF && reader.ReadState == ReadState.Interactive)
                     {
                         if (reader.NodeType == XmlNodeType.Element)
                         {
@@ -1373,6 +1452,10 @@ namespace MediaBrowser.Providers.TV
                                     reader.Skip();
                                     break;
                             }
+                        }
+                        else
+                        {
+                            reader.Read();
                         }
                     }
                 }
@@ -1584,7 +1667,8 @@ namespace MediaBrowser.Providers.TV
             {
                 CancellationToken = cancellationToken,
                 Url = url,
-                ResourcePool = TvDbResourcePool
+                ResourcePool = TvDbResourcePool,
+                BufferContent = false
             });
         }
     }

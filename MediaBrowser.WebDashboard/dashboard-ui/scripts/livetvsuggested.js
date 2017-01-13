@@ -1,4 +1,4 @@
-﻿define(['libraryBrowser', 'cardBuilder', 'apphost', 'scrollStyles', 'emby-itemscontainer', 'emby-tabs', 'emby-button'], function (libraryBrowser, cardBuilder, appHost) {
+﻿define(['libraryBrowser', 'cardBuilder', 'apphost', 'imageLoader', 'scrollStyles', 'emby-itemscontainer', 'emby-tabs', 'emby-button'], function (libraryBrowser, cardBuilder, appHost, imageLoader) {
     'use strict';
 
     function enableScrollX() {
@@ -37,7 +37,7 @@
 
         }, cardOptions || {}));
 
-        ImageLoader.lazyChildren(recordingItems);
+        imageLoader.lazyChildren(recordingItems);
     }
 
     function getBackdropShape() {
@@ -225,7 +225,7 @@
         var elem = page.querySelector('.' + sectionClass);
 
         elem.innerHTML = html;
-        ImageLoader.lazyChildren(elem);
+        imageLoader.lazyChildren(elem);
     }
 
     return function (view, params) {
@@ -266,6 +266,7 @@
 
         var tabControllers = [];
         var renderedTabs = [];
+        var currentTabController;
 
         function getTabController(page, index, callback) {
 
@@ -343,7 +344,12 @@
                         renderedTabs.push(index);
                     }
                     controller.renderTab();
+                } else {
+                    if (controller.onShow) {
+                        controller.onShow();
+                    }
                 }
+                currentTabController = controller;
             });
         }
 
@@ -356,11 +362,20 @@
         });
 
         viewTabs.addEventListener('tabchange', function (e) {
+
+            var previousTabController = tabControllers[parseInt(e.detail.previousIndex)];
+            if (previousTabController && previousTabController.onHide) {
+                previousTabController.onHide();
+            }
+
             loadTab(view, parseInt(e.detail.selectedTabIndex));
         });
 
         view.addEventListener('viewbeforehide', function (e) {
 
+            if (currentTabController && currentTabController.onHide) {
+                currentTabController.onHide();
+            }
             document.body.classList.remove('autoScrollY');
         });
 

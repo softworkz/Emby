@@ -44,7 +44,7 @@ namespace Emby.Server.Implementations.HttpServer.SocketSharp
             _httpRequestFactory = httpRequestFactory;
         }
 
-        public Action<Exception, IRequest> ErrorHandler { get; set; }
+        public Action<Exception, IRequest, bool> ErrorHandler { get; set; }
         public Func<IHttpRequest, Uri, Task> RequestHandler { get; set; }
 
         public Action<WebSocketConnectingEventArgs> WebSocketConnecting { get; set; }
@@ -76,7 +76,8 @@ namespace Emby.Server.Implementations.HttpServer.SocketSharp
 
         private void ProcessContext(HttpListenerContext context)
         {
-            Task.Factory.StartNew(() => InitTask(context));
+            //Task.Factory.StartNew(() => InitTask(context), TaskCreationOptions.DenyChildAttach | TaskCreationOptions.PreferFairness);
+            Task.Run(() => InitTask(context));
         }
 
         private Task InitTask(HttpListenerContext context)
@@ -101,7 +102,7 @@ namespace Emby.Server.Implementations.HttpServer.SocketSharp
                 _logger.ErrorException("Error processing request", ex);
 
                 httpReq = httpReq ?? GetRequest(context);
-                ErrorHandler(ex, httpReq);
+                ErrorHandler(ex, httpReq, true);
                 return Task.FromResult(true);
             }
 

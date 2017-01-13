@@ -2,13 +2,12 @@
 using System.Collections.Generic;
 using System.Reflection;
 using Emby.Server.Core;
-using Emby.Server.Core.Data;
-using Emby.Server.Core.FFMpeg;
+using Emby.Server.Implementations;
+using Emby.Server.Implementations.FFMpeg;
 using MediaBrowser.IsoMounter;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.System;
-using MediaBrowser.Server.Mono.Native;
 
 namespace MediaBrowser.Server.Mono
 {
@@ -52,14 +51,36 @@ namespace MediaBrowser.Server.Mono
             }
             else if (environment.OperatingSystem == Model.System.OperatingSystem.Linux)
             {
+                info.FFMpegFilename = "ffmpeg";
+                info.FFProbeFilename = "ffprobe";
                 info.ArchiveType = "7z";
                 info.Version = "20160215";
+                info.DownloadUrls = GetDownloadUrls();
             }
 
             // No version available - user requirement
             info.DownloadUrls = new string[] { };
 
             return info;
+        }
+
+        private string[] GetDownloadUrls()
+        {
+            switch (EnvironmentInfo.SystemArchitecture)
+            {
+                case Architecture.X64:
+                    return new[]
+                    {
+                                "https://github.com/MediaBrowser/Emby.Resources/raw/master/ffmpeg/linux/ffmpeg-git-20160215-64bit-static.7z"
+                    };
+                case Architecture.X86:
+                    return new[]
+                    {
+                                "https://github.com/MediaBrowser/Emby.Resources/raw/master/ffmpeg/linux/ffmpeg-git-20160215-32bit-static.7z"
+                    };
+            }
+
+            return new string[] { };
         }
 
         protected override void RestartInternal()
@@ -91,22 +112,38 @@ namespace MediaBrowser.Server.Mono
             MainClass.Shutdown();
         }
 
+        protected override bool SupportsDualModeSockets
+        {
+            get
+            {
+                return GetMonoVersion() >= new Version(4, 6);
+            }
+        }
+
+        private static Version GetMonoVersion()
+        {
+            Type type = Type.GetType("Mono.Runtime");
+            if (type != null)
+            {
+                MethodInfo displayName = type.GetTypeInfo().GetMethod("GetDisplayName", BindingFlags.NonPublic | BindingFlags.Static);
+                var displayNameValue = displayName.Invoke(null, null).ToString().Trim().Split(' ')[0];
+
+                Version version;
+                if (Version.TryParse(displayNameValue, out version))
+                {
+                    return version;
+                }
+            }
+
+            return new Version(1, 0);
+        }
+
         protected override void AuthorizeServer()
         {
             throw new NotImplementedException();
         }
 
-        protected override IDbConnector GetDbConnector()
-        {
-            return new DbConnector(Logger);
-        }
-
         protected override void ConfigureAutoRunInternal(bool autorun)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void LaunchUrl(string url)
         {
             throw new NotImplementedException();
         }

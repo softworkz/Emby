@@ -209,6 +209,12 @@ define(['playbackManager', 'inputManager', 'connectionManager', 'embyRouter', 'g
         });
     }
 
+    function sendToast(text) {
+        require(['toast'], function (toast) {
+            toast(text);
+        });
+    }
+
     function executeAction(card, target, action) {
 
         target = target || card;
@@ -225,6 +231,8 @@ define(['playbackManager', 'inputManager', 'connectionManager', 'embyRouter', 'g
         var serverId = item.ServerId;
         var type = item.Type;
 
+        var playableItemId = type === 'Program' ? item.ChannelId : item.Id;
+
         if (action === 'link') {
 
             showItem(item, {
@@ -238,7 +246,10 @@ define(['playbackManager', 'inputManager', 'connectionManager', 'embyRouter', 'g
         }
 
         else if (action === 'instantmix') {
-            playbackManager.instantMix(id, serverId);
+            playbackManager.instantMix({
+                Id: playableItemId,
+                ServerId: serverId
+            });
         }
 
         else if (action === 'play') {
@@ -246,10 +257,26 @@ define(['playbackManager', 'inputManager', 'connectionManager', 'embyRouter', 'g
             var startPositionTicks = parseInt(card.getAttribute('data-positionticks') || '0');
 
             playbackManager.play({
-                ids: [id],
+                ids: [playableItemId],
                 startPositionTicks: startPositionTicks,
                 serverId: serverId
             });
+        }
+
+        else if (action === 'queue') {
+
+            if (playbackManager.isPlaying()) {
+                playbackManager.queue({
+                    ids: [playableItemId],
+                    serverId: serverId
+                });
+                sendToast(globalize.translate('sharedcomponents#MediaQueued'));
+            } else {
+                playbackManager.queue({
+                    ids: [playableItemId],
+                    serverId: serverId
+                });
+            }
         }
 
         else if (action === 'playallfromhere') {
@@ -410,11 +437,17 @@ define(['playbackManager', 'inputManager', 'connectionManager', 'embyRouter', 'g
         }
     }
 
+    function getShortcutAttributesHtml(item) {
+
+        return 'data-id="' + item.Id + '" data-serverid="' + item.ServerId + '" data-type="' + item.Type + '" data-mediatype="' + item.MediaType + '" data-channelid="' + item.ChannelId + '" data-isfolder="' + item.IsFolder + '"';
+    }
+
     return {
         on: on,
         off: off,
         onClick: onClick,
-        showContextMenu: showContextMenu
+        showContextMenu: showContextMenu,
+        getShortcutAttributesHtml: getShortcutAttributesHtml
     };
 
 });

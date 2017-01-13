@@ -1,4 +1,4 @@
-﻿define(['components/categorysyncbuttons', 'cardBuilder', 'apphost', 'scripts/livetvcomponents', 'emby-button', 'listViewStyle', 'emby-itemscontainer'], function (categorysyncbuttons, cardBuilder, appHost) {
+﻿define(['components/categorysyncbuttons', 'cardBuilder', 'apphost', 'imageLoader', 'scripts/livetvcomponents', 'emby-button', 'listViewStyle', 'emby-itemscontainer'], function (categorysyncbuttons, cardBuilder, appHost, imageLoader) {
     'use strict';
 
     function getRecordingGroupHtml(group) {
@@ -96,7 +96,7 @@
 
         }, cardOptions || {}));
 
-        ImageLoader.lazyChildren(recordingItems);
+        imageLoader.lazyChildren(recordingItems);
     }
 
     function getBackdropShape() {
@@ -132,7 +132,9 @@
         promise.then(function (result) {
 
             renderRecordings(context.querySelector('#latestRecordings'), result.Items, {
-                shape: (enableScrollX() ? 'overflowBackdrop' : 'backdrop')
+                shape: (enableScrollX() ? 'overflowBackdrop' : 'backdrop'),
+                showYear: true,
+                lines: 2
             });
 
             Dashboard.hideLoadingMsg();
@@ -155,7 +157,7 @@
         promise.then(function (result) {
 
             renderRecordings(context.querySelector('#episodeRecordings'), result.Items, {
-                showItemCounts: true,
+                showSeriesYear: true,
                 showParentTitle: false
             });
         });

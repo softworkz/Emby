@@ -182,7 +182,6 @@ namespace Emby.Server.Implementations.LiveTv.Listings
 
                         programsInfo.Add(GetProgram(channelNumber, schedule, programDict[schedule.programID]));
                     }
-                    _logger.Info("Finished with EPGData");
                 }
             }
 
@@ -213,7 +212,7 @@ namespace Emby.Server.Implementations.LiveTv.Listings
                 {
                     ScheduleDirect.Station station;
 
-                    if (channelPair.TryGetValue(channelNumber, out station))
+                    if (!string.IsNullOrWhiteSpace(channelNumber) && channelPair.TryGetValue(channelNumber, out station))
                     {
                         return station;
                     }
@@ -322,8 +321,7 @@ namespace Emby.Server.Implementations.LiveTv.Listings
             using (var response = await Get(httpOptions, true, info).ConfigureAwait(false))
             {
                 var root = _jsonSerializer.DeserializeFromStream<ScheduleDirect.Channel>(response);
-                _logger.Info("Found " + root.map.Count + " channels on the lineup on ScheduleDirect");
-                _logger.Info("Mapping Stations to Channel");
+
                 foreach (ScheduleDirect.Map map in root.map)
                 {
                     var channelNumber = map.logicalChannelNumber;
@@ -353,7 +351,6 @@ namespace Emby.Server.Implementations.LiveTv.Listings
                         });
                     }
                 }
-                _logger.Info("Added " + GetChannelPairCacheCount(listingsId) + " channels to the dictionary");
 
                 foreach (ChannelInfo channel in channels)
                 {
@@ -422,7 +419,7 @@ namespace Emby.Server.Implementations.LiveTv.Listings
             }
 
             var showType = details.showType ?? string.Empty;
-
+            
             var info = new ProgramInfo
             {
                 ChannelId = channel,
@@ -440,9 +437,22 @@ namespace Emby.Server.Implementations.LiveTv.Listings
                 IsKids = string.Equals(details.audience, "children", StringComparison.OrdinalIgnoreCase),
                 IsSports = showType.IndexOf("sports", StringComparison.OrdinalIgnoreCase) != -1,
                 IsMovie = showType.IndexOf("movie", StringComparison.OrdinalIgnoreCase) != -1 || showType.IndexOf("film", StringComparison.OrdinalIgnoreCase) != -1,
-                ShowId = programInfo.programID,
                 Etag = programInfo.md5
             };
+
+            var showId = programInfo.programID ?? string.Empty;
+
+            // According to SchedulesDirect, these are generic, unidentified episodes
+            // SH005316560000
+            var hasUniqueShowId = !showId.StartsWith("SH", StringComparison.OrdinalIgnoreCase) ||
+                !showId.EndsWith("0000", StringComparison.OrdinalIgnoreCase);
+
+            if (!hasUniqueShowId)
+            {
+                showId = newID;
+            }
+
+            info.ShowId = showId;
 
             if (programInfo.videoProperties != null)
             {

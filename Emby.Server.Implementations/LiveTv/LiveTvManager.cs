@@ -491,7 +491,7 @@ namespace Emby.Server.Implementations.LiveTv
 
             var id = _tvDtoService.GetInternalChannelId(serviceName, channelInfo.Id);
 
-            var item = _itemRepo.RetrieveItem(id) as LiveTvChannel;
+            var item = _libraryManager.GetItemById(id) as LiveTvChannel;
 
             if (item == null)
             {
@@ -1231,6 +1231,7 @@ namespace Emby.Server.Implementations.LiveTv
             if (coreService != null)
             {
                 await coreService.RefreshSeriesTimers(cancellationToken, new Progress<double>()).ConfigureAwait(false);
+                await coreService.RefreshTimers(cancellationToken, new Progress<double>()).ConfigureAwait(false);
             }
 
             // Load these now which will prefetch metadata
@@ -1601,7 +1602,7 @@ namespace Emby.Server.Implementations.LiveTv
                 Recursive = true,
                 AncestorIds = folders.Select(i => i.Id.ToString("N")).ToArray(),
                 IsFolder = false,
-                ExcludeLocationTypes = new[] { LocationType.Virtual },
+                IsVirtualItem = false,
                 Limit = query.Limit,
                 SortBy = new[] { ItemSortBy.DateCreated },
                 SortOrder = SortOrder.Descending,
@@ -1680,7 +1681,7 @@ namespace Emby.Server.Implementations.LiveTv
                 return new QueryResult<BaseItem>();
             }
 
-            if (_services.Count == 1 && !(query.IsInProgress ?? false))
+            if (_services.Count == 1 && !(query.IsInProgress ?? false) && (!query.IsLibraryItem.HasValue || query.IsLibraryItem.Value))
             {
                 return GetEmbyRecordings(query, new DtoOptions(), user);
             }
@@ -2008,6 +2009,14 @@ namespace Emby.Server.Implementations.LiveTv
                     .Where(i => _tvDtoService.GetInternalSeriesTimerId(i.Item2.Name, i.Item1.SeriesTimerId) == guid);
             }
 
+            if (!string.IsNullOrEmpty(query.Id))
+            {
+                var guid = new Guid(query.Id);
+
+                timers = timers
+                    .Where(i => _tvDtoService.GetInternalTimerId(i.Item2.Name, i.Item1.Id) == guid);
+            }
+
             var returnList = new List<TimerInfoDto>();
 
             foreach (var i in timers)
@@ -2142,7 +2151,11 @@ namespace Emby.Server.Implementations.LiveTv
 
         public async Task<TimerInfoDto> GetTimer(string id, CancellationToken cancellationToken)
         {
-            var results = await GetTimers(new TimerQuery(), cancellationToken).ConfigureAwait(false);
+            var results = await GetTimers(new TimerQuery
+            {
+                Id = id
+
+            }, cancellationToken).ConfigureAwait(false);
 
             return results.Items.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase));
         }
@@ -2634,7 +2647,7 @@ namespace Emby.Server.Implementations.LiveTv
         public GuideInfo GetGuideInfo()
         {
             var startDate = DateTime.UtcNow;
-            var endDate = startDate.AddDays(14);
+            var endDate = startDate.AddDays(GetGuideDays());
 
             return new GuideInfo
             {

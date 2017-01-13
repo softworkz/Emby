@@ -65,7 +65,6 @@ using Emby.Common.Implementations.Networking;
 using Emby.Common.Implementations.Reflection;
 using Emby.Common.Implementations.Serialization;
 using Emby.Common.Implementations.TextEncoding;
-using Emby.Common.Implementations.Updates;
 using Emby.Common.Implementations.Xml;
 using Emby.Photos;
 using MediaBrowser.Model.IO;
@@ -83,23 +82,19 @@ using Emby.Dlna.Main;
 using Emby.Dlna.MediaReceiverRegistrar;
 using Emby.Dlna.Ssdp;
 using Emby.Server.Core;
-using Emby.Server.Core.Activity;
+using Emby.Server.Implementations.Activity;
 using Emby.Server.Core.Configuration;
-using Emby.Server.Core.Data;
-using Emby.Server.Core.Devices;
-using Emby.Server.Core.FFMpeg;
+using Emby.Server.Implementations.Devices;
+using Emby.Server.Implementations.FFMpeg;
 using Emby.Server.Core.IO;
 using Emby.Server.Core.Localization;
-using Emby.Server.Core.Migrations;
-using Emby.Server.Core.Notifications;
-using Emby.Server.Core.Security;
-using Emby.Server.Core.Social;
-using Emby.Server.Core.Sync;
-using Emby.Server.Implementations.Activity;
+using Emby.Server.Implementations.Migrations;
+using Emby.Server.Implementations.Security;
+using Emby.Server.Implementations.Social;
+using Emby.Server.Implementations.Sync;
 using Emby.Server.Implementations.Channels;
 using Emby.Server.Implementations.Collections;
 using Emby.Server.Implementations.Connect;
-using Emby.Server.Implementations.Devices;
 using Emby.Server.Implementations.Dto;
 using Emby.Server.Implementations.EntryPoints;
 using Emby.Server.Implementations.FileOrganization;
@@ -110,9 +105,9 @@ using Emby.Server.Implementations.LiveTv;
 using Emby.Server.Implementations.Localization;
 using Emby.Server.Implementations.MediaEncoder;
 using Emby.Server.Implementations.Notifications;
-using Emby.Server.Implementations.Persistence;
+using Emby.Server.Implementations.Data;
 using Emby.Server.Implementations.Playlists;
-using Emby.Server.Implementations.Security;
+using Emby.Server.Implementations;
 using Emby.Server.Implementations.ServerManager;
 using Emby.Server.Implementations.Session;
 using Emby.Server.Implementations.Social;
@@ -136,6 +131,9 @@ using ServiceStack;
 using SocketHttpListener.Primitives;
 using StringExtensions = MediaBrowser.Controller.Extensions.StringExtensions;
 using Emby.Drawing;
+using Emby.Server.Implementations.Migrations;
+using MediaBrowser.Model.Diagnostics;
+using Emby.Common.Implementations.Diagnostics;
 
 namespace Emby.Server.Core
 {
@@ -282,12 +280,12 @@ namespace Emby.Server.Core
             INetworkManager networkManager,
             Action<string, string> certificateGenerator,
             Func<string> defaultUsernameFactory)
-            : base(applicationPaths, 
-                  logManager, 
-                  fileSystem, 
-                  environmentInfo, 
-                  systemEvents, 
-                  memoryStreamFactory, 
+            : base(applicationPaths,
+                  logManager,
+                  fileSystem,
+                  environmentInfo,
+                  systemEvents,
+                  memoryStreamFactory,
                   networkManager)
         {
             StartupOptions = options;
@@ -359,12 +357,6 @@ namespace Emby.Server.Core
         {
             await PerformPreInitMigrations().ConfigureAwait(false);
 
-            if (ServerConfigurationManager.Configuration.MigrationVersion < CleanDatabaseScheduledTask.MigrationVersion &&
-                ServerConfigurationManager.Configuration.IsStartupWizardCompleted)
-            {
-                TaskManager.SuspendTriggers = true;
-            }
-
             await base.RunStartupTasks().ConfigureAwait(false);
 
             await MediaEncoder.Init().ConfigureAwait(false);
@@ -432,6 +424,7 @@ namespace Emby.Server.Core
             ServiceStack.Text.JsConfig<Movie>.ExcludePropertyNames = new[] { "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
             ServiceStack.Text.JsConfig<Playlist>.ExcludePropertyNames = new[] { "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
             ServiceStack.Text.JsConfig<AudioPodcast>.ExcludePropertyNames = new[] { "Artists", "AlbumArtists", "ChannelMediaSources", "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
+            ServiceStack.Text.JsConfig<AudioBook>.ExcludePropertyNames = new[] { "Artists", "AlbumArtists", "ChannelMediaSources", "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
             ServiceStack.Text.JsConfig<Trailer>.ExcludePropertyNames = new[] { "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
             ServiceStack.Text.JsConfig<BoxSet>.ExcludePropertyNames = new[] { "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
             ServiceStack.Text.JsConfig<Episode>.ExcludePropertyNames = new[] { "ProviderIds", "ImageInfos", "ProductionLocations", "ThemeSongIds", "ThemeVideoIds", "TotalBitrate", "ShortOverview", "Taglines", "Keywords", "ExtraType" };
@@ -496,7 +489,7 @@ namespace Emby.Server.Core
         {
             var migrations = new List<IVersionMigration>
             {
-                new DbMigration(ServerConfigurationManager, TaskManager)
+                new LibraryScanMigration(ServerConfigurationManager, TaskManager)
             };
 
             foreach (var task in migrations)
@@ -554,23 +547,25 @@ namespace Emby.Server.Core
             UserDataManager = new UserDataManager(LogManager, ServerConfigurationManager);
             RegisterSingleInstance(UserDataManager);
 
-            UserRepository = await GetUserRepository().ConfigureAwait(false);
+            UserRepository = GetUserRepository();
+            // This is only needed for disposal purposes. If removing this, make sure to have the manager handle disposing it
+            RegisterSingleInstance(UserRepository);
 
-            var displayPreferencesRepo = new SqliteDisplayPreferencesRepository(LogManager, JsonSerializer, ApplicationPaths, GetDbConnector(), MemoryStreamFactory);
+            var displayPreferencesRepo = new SqliteDisplayPreferencesRepository(LogManager.GetLogger("SqliteDisplayPreferencesRepository"), JsonSerializer, ApplicationPaths, MemoryStreamFactory);
             DisplayPreferencesRepository = displayPreferencesRepo;
             RegisterSingleInstance(DisplayPreferencesRepository);
 
-            var itemRepo = new SqliteItemRepository(ServerConfigurationManager, JsonSerializer, LogManager, GetDbConnector(), MemoryStreamFactory);
+            var itemRepo = new SqliteItemRepository(ServerConfigurationManager, JsonSerializer, LogManager.GetLogger("SqliteItemRepository"), MemoryStreamFactory, assemblyInfo, FileSystemManager, EnvironmentInfo, TimerFactory);
             ItemRepository = itemRepo;
             RegisterSingleInstance(ItemRepository);
 
-            FileOrganizationRepository = await GetFileOrganizationRepository().ConfigureAwait(false);
+            FileOrganizationRepository = GetFileOrganizationRepository();
             RegisterSingleInstance(FileOrganizationRepository);
 
             AuthenticationRepository = await GetAuthenticationRepository().ConfigureAwait(false);
             RegisterSingleInstance(AuthenticationRepository);
 
-            SyncRepository = await GetSyncRepository().ConfigureAwait(false);
+            SyncRepository = GetSyncRepository();
             RegisterSingleInstance(SyncRepository);
 
             UserManager = new UserManager(LogManager.GetLogger("UserManager"), ServerConfigurationManager, UserRepository, XmlSerializer, NetworkManager, () => ImageProcessor, () => DtoService, () => ConnectManager, this, JsonSerializer, FileSystemManager, CryptographyProvider, _defaultUserNameFactory());
@@ -593,7 +588,7 @@ namespace Emby.Server.Core
             CertificatePath = GetCertificatePath(true);
             Certificate = GetCertificate(CertificatePath);
 
-            HttpServer = HttpServerFactory.CreateServer(this, LogManager, ServerConfigurationManager, NetworkManager, MemoryStreamFactory, "Emby", "web/index.html", textEncoding, SocketFactory, CryptographyProvider, JsonSerializer, XmlSerializer, EnvironmentInfo, Certificate);
+            HttpServer = HttpServerFactory.CreateServer(this, LogManager, ServerConfigurationManager, NetworkManager, MemoryStreamFactory, "Emby", "web/index.html", textEncoding, SocketFactory, CryptographyProvider, JsonSerializer, XmlSerializer, EnvironmentInfo, Certificate, SupportsDualModeSockets);
             HttpServer.GlobalResponse = LocalizationManager.GetLocalizedString("StartupEmbyServerIsLoading");
             RegisterSingleInstance(HttpServer, false);
             progress.Report(10);
@@ -683,11 +678,13 @@ namespace Emby.Server.Core
             EncodingManager = new EncodingManager(FileSystemManager, Logger, MediaEncoder, ChapterManager, LibraryManager);
             RegisterSingleInstance(EncodingManager);
 
-            var sharingRepo = new SharingRepository(LogManager, ApplicationPaths, GetDbConnector());
-            await sharingRepo.Initialize().ConfigureAwait(false);
+            var sharingRepo = new SharingRepository(LogManager.GetLogger("SharingRepository"), ApplicationPaths);
+            sharingRepo.Initialize();
+            // This is only needed for disposal purposes. If removing this, make sure to have the manager handle disposing it
+            RegisterSingleInstance<ISharingRepository>(sharingRepo);
             RegisterSingleInstance<ISharingManager>(new SharingManager(sharingRepo, ServerConfigurationManager, LibraryManager, this));
 
-            var activityLogRepo = await GetActivityLogRepository().ConfigureAwait(false);
+            var activityLogRepo = GetActivityLogRepository();
             RegisterSingleInstance(activityLogRepo);
             RegisterSingleInstance<IActivityManager>(new ActivityManager(LogManager.GetLogger("ActivityManager"), activityLogRepo, UserManager));
 
@@ -701,20 +698,22 @@ namespace Emby.Server.Core
             SubtitleEncoder = new SubtitleEncoder(LibraryManager, LogManager.GetLogger("SubtitleEncoder"), ApplicationPaths, FileSystemManager, MediaEncoder, JsonSerializer, HttpClient, MediaSourceManager, MemoryStreamFactory, ProcessFactory, textEncoding);
             RegisterSingleInstance(SubtitleEncoder);
 
-            await displayPreferencesRepo.Initialize().ConfigureAwait(false);
+            displayPreferencesRepo.Initialize();
 
-            var userDataRepo = new SqliteUserDataRepository(LogManager, ApplicationPaths, GetDbConnector());
+            var userDataRepo = new SqliteUserDataRepository(LogManager.GetLogger("SqliteUserDataRepository"), ApplicationPaths, FileSystemManager);
 
             ((UserDataManager)UserDataManager).Repository = userDataRepo;
-            await itemRepo.Initialize(userDataRepo).ConfigureAwait(false);
+            itemRepo.Initialize(userDataRepo);
             ((LibraryManager)LibraryManager).ItemRepository = ItemRepository;
-            await ConfigureNotificationsRepository().ConfigureAwait(false);
+            ConfigureNotificationsRepository();
             progress.Report(100);
 
             SetStaticProperties();
 
             await ((UserManager)UserManager).Initialize().ConfigureAwait(false);
         }
+
+        protected abstract bool SupportsDualModeSockets { get; }
 
         private ICertificate GetCertificate(string certificateLocation)
         {
@@ -792,11 +791,12 @@ namespace Emby.Server.Core
                 () => SubtitleEncoder,
                 () => MediaSourceManager,
                 HttpClient,
-                ZipClient, 
+                ZipClient,
                 MemoryStreamFactory,
                 ProcessFactory,
                 (Environment.ProcessorCount > 2 ? 14000 : 40000),
-                EnvironmentInfo.OperatingSystem == MediaBrowser.Model.System.OperatingSystem.Windows);
+                EnvironmentInfo.OperatingSystem == MediaBrowser.Model.System.OperatingSystem.Windows,
+                EnvironmentInfo);
 
             MediaEncoder = mediaEncoder;
             RegisterSingleInstance(MediaEncoder);
@@ -806,11 +806,11 @@ namespace Emby.Server.Core
         /// Gets the user repository.
         /// </summary>
         /// <returns>Task{IUserRepository}.</returns>
-        private async Task<IUserRepository> GetUserRepository()
+        private IUserRepository GetUserRepository()
         {
-            var repo = new SqliteUserRepository(LogManager, ApplicationPaths, JsonSerializer, GetDbConnector(), MemoryStreamFactory);
+            var repo = new SqliteUserRepository(LogManager.GetLogger("SqliteUserRepository"), ApplicationPaths, JsonSerializer, MemoryStreamFactory);
 
-            await repo.Initialize().ConfigureAwait(false);
+            repo.Initialize();
 
             return repo;
         }
@@ -819,38 +819,38 @@ namespace Emby.Server.Core
         /// Gets the file organization repository.
         /// </summary>
         /// <returns>Task{IUserRepository}.</returns>
-        private async Task<IFileOrganizationRepository> GetFileOrganizationRepository()
+        private IFileOrganizationRepository GetFileOrganizationRepository()
         {
-            var repo = new SqliteFileOrganizationRepository(LogManager, ServerConfigurationManager.ApplicationPaths, GetDbConnector());
+            var repo = new SqliteFileOrganizationRepository(LogManager.GetLogger("SqliteFileOrganizationRepository"), ServerConfigurationManager.ApplicationPaths);
 
-            await repo.Initialize().ConfigureAwait(false);
+            repo.Initialize();
 
             return repo;
         }
 
         private async Task<IAuthenticationRepository> GetAuthenticationRepository()
         {
-            var repo = new AuthenticationRepository(LogManager, ServerConfigurationManager.ApplicationPaths, GetDbConnector());
+            var repo = new AuthenticationRepository(LogManager.GetLogger("AuthenticationRepository"), ServerConfigurationManager.ApplicationPaths);
 
-            await repo.Initialize().ConfigureAwait(false);
-
-            return repo;
-        }
-
-        private async Task<IActivityRepository> GetActivityLogRepository()
-        {
-            var repo = new ActivityRepository(LogManager, ServerConfigurationManager.ApplicationPaths, GetDbConnector());
-
-            await repo.Initialize().ConfigureAwait(false);
+            repo.Initialize();
 
             return repo;
         }
 
-        private async Task<ISyncRepository> GetSyncRepository()
+        private IActivityRepository GetActivityLogRepository()
         {
-            var repo = new SyncRepository(LogManager, JsonSerializer, ServerConfigurationManager.ApplicationPaths, GetDbConnector());
+            var repo = new ActivityRepository(LogManager.GetLogger("ActivityRepository"), ServerConfigurationManager.ApplicationPaths);
 
-            await repo.Initialize().ConfigureAwait(false);
+            repo.Initialize();
+
+            return repo;
+        }
+
+        private ISyncRepository GetSyncRepository()
+        {
+            var repo = new SyncRepository(LogManager.GetLogger("SyncRepository"), JsonSerializer, ServerConfigurationManager.ApplicationPaths);
+
+            repo.Initialize();
 
             return repo;
         }
@@ -858,11 +858,11 @@ namespace Emby.Server.Core
         /// <summary>
         /// Configures the repositories.
         /// </summary>
-        private async Task ConfigureNotificationsRepository()
+        private void ConfigureNotificationsRepository()
         {
-            var repo = new SqliteNotificationsRepository(LogManager, ApplicationPaths, GetDbConnector());
+            var repo = new SqliteNotificationsRepository(LogManager.GetLogger("SqliteNotificationsRepository"), ServerConfigurationManager.ApplicationPaths);
 
-            await repo.Initialize().ConfigureAwait(false);
+            repo.Initialize();
 
             NotificationsRepository = repo;
 
@@ -1083,6 +1083,8 @@ namespace Emby.Server.Core
 
             if (requiresRestart)
             {
+                Logger.Info("App needs to be restarted due to configuration change.");
+
                 NotifyPendingRestart();
             }
         }
@@ -1204,7 +1206,8 @@ namespace Emby.Server.Core
             var exclude = new[]
             {
                 "mbplus.dll",
-                "mbintros.dll"
+                "mbintros.dll",
+                "embytv.dll"
             };
 
             return !exclude.Contains(filename ?? string.Empty, StringComparer.OrdinalIgnoreCase);
@@ -1222,7 +1225,6 @@ namespace Emby.Server.Core
             {
                 HasPendingRestart = HasPendingRestart,
                 Version = ApplicationVersion.ToString(),
-                IsNetworkDeployed = CanSelfUpdate,
                 WebSocketPortNumber = HttpPort,
                 FailedPluginAssemblies = FailedAssemblies.ToList(),
                 InProgressInstallations = InstallationManager.CurrentInstallations.Select(i => i.Item1).ToList(),
@@ -1311,19 +1313,49 @@ namespace Emby.Server.Core
 
         public async Task<List<IpAddressInfo>> GetLocalIpAddresses()
         {
-            var addresses = NetworkManager.GetLocalIpAddresses().ToList();
-            var list = new List<IpAddressInfo>();
+            var addresses = ServerConfigurationManager
+                .Configuration
+                .LocalNetworkAddresses
+                .Select(NormalizeConfiguredLocalAddress)
+                .Where(i => i != null)
+                .ToList();
 
-            foreach (var address in addresses)
+            if (addresses.Count == 0)
             {
-                var valid = await IsIpAddressValidAsync(address).ConfigureAwait(false);
-                if (valid)
+                addresses.AddRange(NetworkManager.GetLocalIpAddresses());
+
+                var list = new List<IpAddressInfo>();
+
+                foreach (var address in addresses)
                 {
-                    list.Add(address);
+                    var valid = await IsIpAddressValidAsync(address).ConfigureAwait(false);
+                    if (valid)
+                    {
+                        list.Add(address);
+                    }
                 }
+
+                addresses = list;
             }
 
-            return list;
+            return addresses;
+        }
+
+        private IpAddressInfo NormalizeConfiguredLocalAddress(string address)
+        {
+            var index = address.Trim('/').IndexOf('/');
+
+            if (index != -1)
+            {
+                address = address.Substring(index + 1);
+            }
+
+            IpAddressInfo result;
+            if (NetworkManager.TryParseIpAddress(address.Trim('/'), out result))
+            {
+                return result;
+            }
+            return null;
         }
 
         private readonly ConcurrentDictionary<string, bool> _validAddressResults = new ConcurrentDictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -1452,7 +1484,6 @@ namespace Emby.Server.Core
         }
 
         protected abstract void AuthorizeServer();
-        protected abstract IDbConnector GetDbConnector();
 
         public event EventHandler HasUpdateAvailableChanged;
 
@@ -1553,7 +1584,41 @@ namespace Emby.Server.Core
             }
         }
 
-        public abstract void LaunchUrl(string url);
+        public void LaunchUrl(string url)
+        {
+            if (EnvironmentInfo.OperatingSystem != MediaBrowser.Model.System.OperatingSystem.Windows &&
+                EnvironmentInfo.OperatingSystem != MediaBrowser.Model.System.OperatingSystem.OSX)
+            {
+                throw new NotImplementedException();
+            }
+
+            var process = ProcessFactory.Create(new ProcessOptions
+            {
+                FileName = url,
+                //EnableRaisingEvents = true,
+                UseShellExecute = true,
+                ErrorDialog = false
+            });
+
+            process.Exited += ProcessExited;
+
+            try
+            {
+                process.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error launching url: {0}", url);
+                Logger.ErrorException("Error launching url: {0}", ex, url);
+
+                throw;
+            }
+        }
+
+        private static void ProcessExited(object sender, EventArgs e)
+        {
+            ((IProcess)sender).Dispose();
+        }
 
         public void EnableLoopback(string appName)
         {

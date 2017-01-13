@@ -23,7 +23,8 @@ using Emby.Common.Implementations.Logging;
 using Emby.Common.Implementations.Networking;
 using Emby.Common.Implementations.Security;
 using Emby.Server.Core;
-using Emby.Server.Core.Browser;
+using Emby.Server.Implementations;
+using Emby.Server.Implementations.Browser;
 using Emby.Server.Implementations.IO;
 using ImageMagickSharp;
 using MediaBrowser.Common.Net;
@@ -73,7 +74,7 @@ namespace MediaBrowser.ServerApplication
         /// </summary>
         public static void Main()
         {
-            var options = new StartupOptions();
+            var options = new StartupOptions(Environment.GetCommandLineArgs());
             IsRunningAsService = options.ContainsOption("-service");
 
             if (IsRunningAsService)
@@ -89,6 +90,8 @@ namespace MediaBrowser.ServerApplication
             Wand.SetMagickCoderModulePath(architecturePath);
 
             var success = SetDllDirectory(architecturePath);
+
+            SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_sqlite3());
 
             var appPaths = CreateApplicationPaths(ApplicationPath, IsRunningAsService);
 
@@ -337,7 +340,7 @@ namespace MediaBrowser.ServerApplication
                 imageEncoder,
                 new Server.Startup.Common.SystemEvents(logManager.GetLogger("SystemEvents")),
                 new RecyclableMemoryStreamProvider(),
-                new NetworkManager(logManager.GetLogger("NetworkManager")),
+                new Networking.NetworkManager(logManager.GetLogger("NetworkManager")),
                 GenerateCertificate,
                 () => Environment.UserDomainName);
 
@@ -598,6 +601,12 @@ namespace MediaBrowser.ServerApplication
         /// <returns><c>true</c> if XXXX, <c>false</c> otherwise</returns>
         private static bool PerformUpdateIfNeeded(ServerApplicationPaths appPaths, ILogger logger)
         {
+            // Not supported
+            if (IsRunningAsService)
+            {
+                return false;
+            }
+
             // Look for the existence of an update archive
             var updateArchive = Path.Combine(appPaths.TempUpdatePath, "MBServer" + ".zip");
             if (File.Exists(updateArchive))

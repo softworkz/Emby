@@ -24,6 +24,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Extensions;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Model.Diagnostics;
+using MediaBrowser.Model.System;
 
 namespace MediaBrowser.MediaEncoding.Encoder
 {
@@ -88,10 +89,17 @@ namespace MediaBrowser.MediaEncoding.Encoder
         private readonly int DefaultImageExtractionTimeoutMs;
         private readonly bool EnableEncoderFontFile;
 
+        private readonly IEnvironmentInfo _environmentInfo;
+
         public MediaEncoder(ILogger logger, IJsonSerializer jsonSerializer, string ffMpegPath, string ffProbePath, bool hasExternalEncoder, IServerConfigurationManager configurationManager, IFileSystem fileSystem, ILiveTvManager liveTvManager, IIsoManager isoManager, ILibraryManager libraryManager, IChannelManager channelManager, ISessionManager sessionManager, Func<ISubtitleEncoder> subtitleEncoder, Func<IMediaSourceManager> mediaSourceManager, IHttpClient httpClient, IZipClient zipClient, IMemoryStreamFactory memoryStreamProvider, IProcessFactory processFactory,
             int defaultImageExtractionTimeoutMs,
-            bool enableEncoderFontFile)
+            bool enableEncoderFontFile, IEnvironmentInfo environmentInfo)
         {
+            if (jsonSerializer == null)
+            {
+                throw new ArgumentNullException("jsonSerializer");
+            }
+
             _logger = logger;
             _jsonSerializer = jsonSerializer;
             ConfigurationManager = configurationManager;
@@ -109,12 +117,66 @@ namespace MediaBrowser.MediaEncoding.Encoder
             _processFactory = processFactory;
             DefaultImageExtractionTimeoutMs = defaultImageExtractionTimeoutMs;
             EnableEncoderFontFile = enableEncoderFontFile;
+            _environmentInfo = environmentInfo;
             FFProbePath = ffProbePath;
             FFMpegPath = ffMpegPath;
             _originalFFProbePath = ffProbePath;
             _originalFFMpegPath = ffMpegPath;
 
             _hasExternalEncoder = hasExternalEncoder;
+
+            SetEnvironmentVariable();
+        }
+
+        private readonly object _logLock = new object();
+        public void SetLogFilename(string name)
+        {
+            lock (_logLock)
+            {
+                try
+                {
+                    _environmentInfo.SetProcessEnvironmentVariable("FFREPORT", "file=" + name + ":level=32");
+                }
+                catch (Exception ex)
+                {
+                    _logger.ErrorException("Error setting FFREPORT environment variable", ex);
+                }
+            }
+        }
+
+        public void ClearLogFilename()
+        {
+            lock (_logLock)
+            {
+                try
+                {
+                    _environmentInfo.SetProcessEnvironmentVariable("FFREPORT", null);
+                }
+                catch (Exception ex)
+                {
+                    //_logger.ErrorException("Error setting FFREPORT environment variable", ex);
+                }
+            }
+        }
+
+        private void SetEnvironmentVariable()
+        {
+            try
+            {
+                //_environmentInfo.SetProcessEnvironmentVariable("FFREPORT", "file=program-YYYYMMDD-HHMMSS.txt:level=32");
+            }
+            catch (Exception ex)
+            {
+                _logger.ErrorException("Error setting FFREPORT environment variable", ex);
+            }
+            try
+            {
+                //_environmentInfo.SetUserEnvironmentVariable("FFREPORT", "file=program-YYYYMMDD-HHMMSS.txt:level=32");
+            }
+            catch (Exception ex)
+            {
+                _logger.ErrorException("Error setting FFREPORT environment variable", ex);
+            }
         }
 
         public string EncoderLocationType
@@ -224,6 +286,8 @@ namespace MediaBrowser.MediaEncoding.Encoder
             {
                 return;
             }
+
+            _logger.Info("Attempting to update encoder path to {0}. pathType: {1}", path ?? string.Empty, pathType ?? string.Empty);
 
             Tuple<string, string> newPaths;
 
@@ -469,8 +533,10 @@ namespace MediaBrowser.MediaEncoding.Encoder
             probeSize = probeSize + " " + analyzeDuration;
             probeSize = probeSize.Trim();
 
+            var forceEnableLogging = request.Protocol != MediaProtocol.File;
+
             return GetMediaInfoInternal(GetInputArgument(inputFiles, request.Protocol), request.InputPath, request.Protocol, extractChapters,
-                probeSize, request.MediaType == DlnaProfileType.Audio, request.VideoType, cancellationToken);
+                probeSize, request.MediaType == DlnaProfileType.Audio, request.VideoType, forceEnableLogging, cancellationToken);
         }
 
         /// <summary>
@@ -513,14 +579,6 @@ namespace MediaBrowser.MediaEncoding.Encoder
         /// <summary>
         /// Gets the media info internal.
         /// </summary>
-        /// <param name="inputPath">The input path.</param>
-        /// <param name="primaryPath">The primary path.</param>
-        /// <param name="protocol">The protocol.</param>
-        /// <param name="extractChapters">if set to <c>true</c> [extract chapters].</param>
-        /// <param name="probeSizeArgument">The probe size argument.</param>
-        /// <param name="isAudio">if set to <c>true</c> [is audio].</param>
-        /// <param name="videoType">Type of the video.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>Task{MediaInfoResult}.</returns>
         private async Task<MediaInfo> GetMediaInfoInternal(string inputPath,
             string primaryPath,
@@ -529,6 +587,7 @@ namespace MediaBrowser.MediaEncoding.Encoder
             string probeSizeArgument,
             bool isAudio,
             VideoType videoType,
+            bool forceEnableLogging,
             CancellationToken cancellationToken)
         {
             var args = extractChapters
@@ -550,7 +609,14 @@ namespace MediaBrowser.MediaEncoding.Encoder
                 EnableRaisingEvents = true
             });
 
-            _logger.Debug("{0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+            if (forceEnableLogging)
+            {
+                _logger.Info("{0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+            }
+            else
+            {
+                _logger.Debug("{0} {1}", process.StartInfo.FileName, process.StartInfo.Arguments);
+            }
 
             using (var processWrapper = new ProcessWrapper(process, this, _logger))
             {
@@ -575,7 +641,7 @@ namespace MediaBrowser.MediaEncoding.Encoder
 
                     var result = _jsonSerializer.DeserializeFromStream<InternalMediaInfoResult>(process.StandardOutput.BaseStream);
 
-                    if (result.streams == null && result.format == null)
+                    if (result == null || (result.streams == null && result.format == null))
                     {
                         throw new Exception("ffprobe failed - streams and format are both null.");
                     }

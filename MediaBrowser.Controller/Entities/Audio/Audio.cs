@@ -62,6 +62,12 @@ namespace MediaBrowser.Controller.Entities.Audio
         }
 
         [IgnoreDataMember]
+        public override bool SupportsInheritedParentImages
+        {
+            get { return true; }
+        }
+
+        [IgnoreDataMember]
         protected override bool SupportsOwnedItems
         {
             get
@@ -200,7 +206,7 @@ namespace MediaBrowser.Controller.Entities.Audio
         {
             if (SourceType == SourceType.Channel)
             {
-                var sources = ChannelManager.GetStaticMediaSources(this, false, CancellationToken.None)
+                var sources = ChannelManager.GetStaticMediaSources(this, CancellationToken.None)
                            .Result.ToList();
 
                 if (sources.Count > 0)

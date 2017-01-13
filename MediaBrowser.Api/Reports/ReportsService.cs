@@ -82,8 +82,6 @@ namespace MediaBrowser.Api.Reports
                     ReportBuilder dataBuilder = new ReportBuilder(_libraryManager);
                     result = dataBuilder.GetHeaders(request);
                     break;
-                case ReportViewType.ReportStatistics:
-                    break;
                 case ReportViewType.ReportActivities:
                     ReportActivitiesBuilder activityBuilder = new ReportActivitiesBuilder(_libraryManager, _userManager);
                     result = activityBuilder.GetHeaders(request);
@@ -105,20 +103,6 @@ namespace MediaBrowser.Api.Reports
             request.DisplayType = "Screen";
             var user = !string.IsNullOrWhiteSpace(request.UserId) ? _userManager.GetUserById(request.UserId) : null;
             var reportResult = await GetReportResult(request, user);
-
-            return ToOptimizedResult(reportResult);
-        }
-
-        /// <summary> Gets the given request. </summary>
-        /// <param name="request"> The request. </param>
-        /// <returns> A Task&lt;object&gt; </returns>
-        public async Task<object> Get(GetReportStatistics request)
-        {
-            if (string.IsNullOrEmpty(request.IncludeItemTypes))
-                return null;
-            request.DisplayType = "Screen";
-            var user = !string.IsNullOrWhiteSpace(request.UserId) ? _userManager.GetUserById(request.UserId) : null;
-            var reportResult = await GetReportStatistic(request, user);
 
             return ToOptimizedResult(reportResult);
         }
@@ -155,7 +139,6 @@ namespace MediaBrowser.Api.Reports
             ReportResult result = null;
             switch (reportViewType)
             {
-                case ReportViewType.ReportStatistics:
                 case ReportViewType.ReportData:
                     ReportIncludeItemTypes reportRowType = ReportHelper.GetRowType(request.IncludeItemTypes);
                     ReportBuilder dataBuilder = new ReportBuilder(_libraryManager);
@@ -226,7 +209,6 @@ namespace MediaBrowser.Api.Reports
                 OfficialRatings = request.GetOfficialRatings(),
                 Genres = request.GetGenres(),
                 GenreIds = request.GetGenreIds(),
-                Studios = request.GetStudios(),
                 StudioIds = request.GetStudioIds(),
                 Person = request.Person,
                 PersonIds = request.GetPersonIds(),
@@ -311,7 +293,11 @@ namespace MediaBrowser.Api.Reports
             // ExcludeLocationTypes
             if (!string.IsNullOrEmpty(request.ExcludeLocationTypes))
             {
-                query.ExcludeLocationTypes = request.ExcludeLocationTypes.Split(',').Select(d => (LocationType)Enum.Parse(typeof(LocationType), d, true)).ToArray();
+                var excludeLocationTypes = request.ExcludeLocationTypes.Split(',').Select(d => (LocationType)Enum.Parse(typeof(LocationType), d, true)).ToArray();
+                if (excludeLocationTypes.Contains(LocationType.Virtual))
+                {
+                    query.IsVirtualItem = false;
+                }
             }
 
             if (!string.IsNullOrEmpty(request.LocationTypes))
@@ -329,21 +315,6 @@ namespace MediaBrowser.Api.Reports
             if (!string.IsNullOrWhiteSpace(request.MaxOfficialRating))
             {
                 query.MaxParentalRating = _localization.GetRatingLevel(request.MaxOfficialRating);
-            }
-
-            // Artists
-            if (!string.IsNullOrEmpty(request.ArtistIds))
-            {
-                var artistIds = request.ArtistIds.Split(new[] { '|', ',' });
-
-                var artistItems = artistIds.Select(_libraryManager.GetItemById).Where(i => i != null).ToList();
-                query.ArtistNames = artistItems.Select(i => i.Name).ToArray();
-            }
-
-            // Artists
-            if (!string.IsNullOrEmpty(request.Artists))
-            {
-                query.ArtistNames = request.Artists.Split('|');
             }
 
             // Albums
@@ -460,20 +431,6 @@ namespace MediaBrowser.Api.Reports
             ReportResult reportResult = reportBuilder.GetResult(queryResult.Items, request);
             reportResult.TotalRecordCount = queryResult.TotalRecordCount;
 
-            return reportResult;
-        }
-
-        /// <summary> Gets report statistic. </summary>
-        /// <param name="request"> The request. </param>
-        /// <returns> The report statistic. </returns>
-        private async Task<ReportStatResult> GetReportStatistic(GetReportStatistics request, User user)
-        {
-            ReportIncludeItemTypes reportRowType = ReportHelper.GetRowType(request.IncludeItemTypes);
-            QueryResult<BaseItem> queryResult = await GetQueryResult(request, user).ConfigureAwait(false);
-
-            ReportStatBuilder reportBuilder = new ReportStatBuilder(_libraryManager);
-            ReportStatResult reportResult = reportBuilder.GetResult(queryResult.Items, ReportHelper.GetRowType(request.IncludeItemTypes), request.TopItems ?? 5);
-            reportResult.TotalRecordCount = reportResult.Groups.Count();
             return reportResult;
         }
 
